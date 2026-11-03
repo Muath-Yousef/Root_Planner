@@ -34,5 +34,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     setupFiles: ['tests/setup.ts'],
+    include: ['tests/**/*.{test,spec}.{ts,tsx}'],
+    exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
   },
 });

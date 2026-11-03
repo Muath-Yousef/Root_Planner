@@ -135,7 +135,7 @@ export function GuidedTour() {
             )}
             <button
               onClick={handleNext}
-              className="rounded bg-sky-600 px-4 py-1.5 text-xs font-bold text-white hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400 transition-colors shadow-md shadow-sky-950"
+              className="rounded bg-sky-700 px-4 py-1.5 text-xs font-bold text-white hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-400 transition-colors shadow-md shadow-sky-950"
             >
               {step === STEPS.length - 1 ? tr('tour.finish') : tr('tour.next')}
             </button>

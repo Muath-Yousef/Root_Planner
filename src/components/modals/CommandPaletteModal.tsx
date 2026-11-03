@@ -274,7 +274,7 @@ export function CommandPaletteModal() {
                 }}
                 className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-start transition-colors ${
                   idx === selectedIndex
-                    ? 'bg-sky-600 text-white font-medium'
+                    ? 'bg-sky-700 text-white font-medium'
                     : 'text-slate-200 hover:bg-slate-800'
                 }`}
               >

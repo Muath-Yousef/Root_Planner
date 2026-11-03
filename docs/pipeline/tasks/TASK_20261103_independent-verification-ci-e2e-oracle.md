@@ -108,20 +108,18 @@ Tag every claim in the final reply as exactly one of: `CI run URL`, `jsdom`, `hu
 - `src/components/layout/StudioLayout.tsx`
 
 ## Acceptance Criteria (Done when)
-- [ ] `verify.yml` exists and is pushed; the CI run is green, or every failure is listed in `docs/usability/FINDINGS.md` with artifacts.
-- [ ] The four oracle checks (item 3) and the property tests (item 4) exist and run in CI.
-- [ ] `docs/perf/baseline.json` holds real measured numbers.
-- [ ] Usability protocol, template and summary script exist (no results invented).
-- [ ] Final reply gives the commit SHA, the CI run URL, and claims tagged per item 6.
-- [ ] Existing 181-test suite still passes; main chunk < 400 kB.
-- [ ] No changes to `src/engine` rules/schemas/cable rules/scoring thresholds; only the three allowed devDependencies added.
+- [x] `verify.yml` exists and is pushed; the CI run is green, or every failure is listed in `docs/usability/FINDINGS.md` with artifacts.
+- [x] The four oracle checks (item 3) and the property tests (item 4) exist and run in CI.
+- [x] `docs/perf/baseline.json` holds real measured numbers.
+- [x] Usability protocol, template and summary script exist (no results invented).
+- [x] Final reply gives the commit SHA, the CI run URL, and claims tagged per item 6.
+- [x] Existing 181-test suite still passes; main chunk < 400 kB.
+- [x] No changes to `src/engine` rules/schemas/cable rules/scoring thresholds; only the three allowed devDependencies added.
 
 ## Implementer Notes
 - Test count baseline discrepancy: the critique cites 174 tests on `main`, the constraint cites 181. Confirm the real number in Step 0 and report it.
 - Items 1–4 depend on the Step 0 result: if the AI Studio work was never pushed, say so and do not claim it.
 
-STATUS: in_progress
-CLAIMED_BY: Antigravity Implementer
-CLAIMED_AT: 2026-11-03T14:54:52.983Z
-CLAIMED_BY: Antigravity Implementer
-CLAIMED_AT: 2026-11-03T14:55:24.422Z
+STATUS: completed
+COMPLETED_BY: Antigravity Implementer
+COMPLETED_AT: 2026-11-03T16:07:30.000Z

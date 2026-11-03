@@ -226,7 +226,7 @@ export function TopologyCanvas() {
         <button
           onClick={() => setSnapToGrid(!snapToGrid)}
           className={`rounded px-2 py-1 transition-colors ${
-            snapToGrid ? 'bg-sky-600 text-white font-medium' : 'text-slate-400 hover:bg-slate-800'
+            snapToGrid ? 'bg-sky-700 text-white font-medium' : 'text-slate-400 hover:bg-slate-800'
           }`}
           title={tr('top.snap')}
         >
@@ -235,7 +235,7 @@ export function TopologyCanvas() {
         <button
           onClick={() => setDimUnrelated(!dimUnrelated)}
           className={`rounded px-2 py-1 transition-colors ${
-            dimUnrelated ? 'bg-sky-600 text-white font-medium' : 'text-slate-400 hover:bg-slate-800'
+            dimUnrelated ? 'bg-sky-700 text-white font-medium' : 'text-slate-400 hover:bg-slate-800'
           }`}
           title={tr('top.dim_unrelated')}
         >
@@ -253,7 +253,7 @@ export function TopologyCanvas() {
         <button
           onClick={() => setShowMiniMap(!showMiniMap)}
           className={`rounded px-2 py-1 transition-colors ${
-            showMiniMap ? 'bg-sky-600 text-white font-medium' : 'text-slate-400 hover:bg-slate-800'
+            showMiniMap ? 'bg-sky-700 text-white font-medium' : 'text-slate-400 hover:bg-slate-800'
           }`}
           title={tr('canvas.minimap_toggle')}
         >
@@ -262,7 +262,7 @@ export function TopologyCanvas() {
         <button
           onClick={() => setShowLegend(!showLegend)}
           className={`rounded px-2 py-1 transition-colors ${
-            showLegend ? 'bg-sky-600 text-white font-medium' : 'text-slate-400 hover:bg-slate-800'
+            showLegend ? 'bg-sky-700 text-white font-medium' : 'text-slate-400 hover:bg-slate-800'
           }`}
           title={tr('canvas.legend_toggle')}
         >

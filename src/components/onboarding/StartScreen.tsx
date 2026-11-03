@@ -52,7 +52,7 @@ export function StartScreen({ onOpen }: { onOpen: () => void }) {
         ))}
       </section>
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => setWizard(true)} className="rounded bg-sky-600 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400">{tr('start.new')}</button>
+        <button onClick={() => setWizard(true)} className="rounded bg-sky-700 px-3 py-2 text-sm font-semibold text-white hover:bg-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-400">{tr('start.new')}</button>
         <button onClick={() => file.current?.click()} className="rounded bg-slate-800 px-3 py-2 text-sm font-medium text-slate-200 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">{tr('start.import')}</button>
         <input ref={file} type="file" accept=".json,.socroot.json,application/json" hidden onChange={(e) => { void onFile(e.target.files?.[0]); e.target.value = ''; }} />
       </div>

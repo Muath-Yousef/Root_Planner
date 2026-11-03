@@ -107,9 +107,8 @@ export function TopControlBar({ onHome }: { onHome: () => void }) {
           onClick={() => setCommandPaletteOpen(true)}
           className="rounded bg-sky-950 px-2 py-1 text-xs font-medium text-sky-300 hover:bg-sky-900 flex items-center gap-1 border border-sky-800/60"
           title={tr('top.title.palette')}
-          aria-label={tr('top.palette')}
         >
-          <span>⌘</span>
+          <span aria-hidden="true">⌘</span>
           {!isMedium && <span>{tr('top.palette')}</span>}
           <kbd className="text-[10px] opacity-70">⌘K</kbd>
         </button>
@@ -207,7 +206,7 @@ export function TopControlBar({ onHome }: { onHome: () => void }) {
               onClick={() => setMode(m)}
               aria-pressed={mode === m}
               className={`px-2.5 py-1 font-medium transition-colors ${
-                mode === m ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-300'
+                mode === m ? 'bg-sky-700 text-white' : 'bg-slate-800 text-slate-300'
               }`}
             >
               {tr(m === 'design' ? 'top.mode.design' : 'top.mode.simulate')}

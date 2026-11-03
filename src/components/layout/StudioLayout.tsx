@@ -150,7 +150,7 @@ export function StudioLayout({ onHome }: { onHome: () => void }) {
                       onClick={() => setActiveDockTab('problems')}
                       className={`flex-1 rounded py-1 text-xs font-medium transition-colors ${
                         activeDockTab === 'problems'
-                          ? 'bg-sky-600 text-white shadow-xs'
+                          ? 'bg-sky-700 text-white shadow-xs'
                           : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >
@@ -160,7 +160,7 @@ export function StudioLayout({ onHome }: { onHome: () => void }) {
                       onClick={() => setActiveDockTab('simulation')}
                       className={`flex-1 rounded py-1 text-xs font-medium transition-colors ${
                         activeDockTab === 'simulation'
-                          ? 'bg-sky-600 text-white shadow-xs'
+                          ? 'bg-sky-700 text-white shadow-xs'
                           : 'text-slate-400 hover:text-slate-200'
                       }`}
                     >

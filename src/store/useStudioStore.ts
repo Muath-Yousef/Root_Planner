@@ -599,3 +599,13 @@ export const useStudio = create<S>()(immer((set, get) => {
 /** Pure selector helpers (kept out of the store so unrelated renders never recompute them). */
 export const problemsOf = (nodes: SNode[], edges: SEdge[], tenant_id: string): Problem[] => collectProblems(nodes, edges, { tenant_id });
 export { errorCount };
+
+declare global {
+  interface Window {
+    __STUDIO_STORE__?: typeof useStudio;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.__STUDIO_STORE__ = useStudio;
+}

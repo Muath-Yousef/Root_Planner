@@ -32,7 +32,7 @@ export function Dock() {
             key={c}
             onClick={() => setCat(c)}
             className={`rounded px-3 py-1 text-sm font-medium transition-colors ${
-              c === active && !q ? 'bg-sky-600 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+              c === active && !q ? 'bg-sky-700 text-white' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
             }`}
           >
             {catLabel(c)}

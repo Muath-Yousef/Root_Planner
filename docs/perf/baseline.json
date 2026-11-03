@@ -1,0 +1,11 @@
+{
+  "timestamp": "2026-11-03T16:05:30.994Z",
+  "nodeCount": 300,
+  "dragDurationMs": 2000,
+  "sampleCount": 124,
+  "p50_ms": 16.7,
+  "p95_ms": 16.8,
+  "max_ms": 16.8,
+  "threshold_p95_ms": 50,
+  "passed": true
+}
