@@ -3,8 +3,16 @@
 # proper project locations, runs validation checks, and commits & pushes to GitHub.
 # Processed files are archived to commit/.done/<timestamp>/.
 #
+# Pipeline folder structure (AI Pipeline v2):
+#   commit/inbox/    ← Implementer (Claude Code) writes code files here
+#   commit/tasks/    ← Analyzer (Claude Desktop) writes task definitions here
+#   commit/reviews/  ← Reviewer (any tool) writes review notes here
+#   commit/.done/    ← Auto-archived after processing
+#
+# Legacy: files placed directly in commit/ (flat) are still processed (fallback).
+#
 # Usage:
-#   ./scripts/push-commit.sh              Process inbox once and exit
+#   ./scripts/push-commit.sh              Process all inboxes once and exit
 #   ./scripts/push-commit.sh --watch      Run interactively in foreground
 #   ./scripts/push-commit.sh --start      Start background daemon watcher
 #   ./scripts/push-commit.sh --stop       Stop background daemon watcher
@@ -14,7 +22,7 @@
 #
 # Options:
 #   -m "message"    Custom commit message
-#   -b <branch>     Push to specified branch (default: current branch)
+#   -b <branch>     Push to specified branch (creates it if needed; use ai/fix-* for PR workflow)
 #   --no-check      Skip typecheck (tsc) and unit tests
 #   --no-scan       Skip sensitive credentials scan
 set -euo pipefail
@@ -32,7 +40,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DEFAULT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "/home/kyrie/work/Root_Planner/Root_Planner")"
 REPO="${REPO:-$REPO_DEFAULT}"
 REMOTE="${REMOTE:-origin}"
-INBOX="$REPO/commit"
+# Pipeline inbox directories (v2 structure)
+INBOX_INBOX="$REPO/commit/inbox"    # Implementer: code files
+INBOX_TASKS="$REPO/commit/tasks"    # Analyzer: task definitions
+INBOX_REVIEWS="$REPO/commit/reviews" # Reviewer: review notes
+INBOX_LEGACY="$REPO/commit"         # Legacy fallback (flat files in commit/)
+INBOX="$INBOX_LEGACY"               # Primary used by process_once (see below)
 DONE="$INBOX/.done"
 PID_FILE="$REPO/.git/push-commit.pid"
 LOG_FILE="$REPO/.git/push-commit.log"
@@ -136,11 +149,30 @@ EOF
   exit 0
 fi
 
-# Where a file goes. A file inside a subfolder of commit/ keeps that path (commit/src/engine/x.ts -> src/engine/x.ts).
-# A flat file is routed by name.
+# Where a file goes. Supports pipeline subfolders:
+#   commit/tasks/    -> docs/pipeline/tasks/
+#   commit/reviews/  -> docs/pipeline/reviews/
+#   commit/inbox/    -> routes to src/, tests/, docs/, etc. (or preserves subdirectory if structured)
+# Flat legacy files in commit/ are routed according to standard rules.
 route() {
-  local rel="$1" base
+  local rel="$1" base sub
   base="$(basename "$rel")"
+
+  # Pipeline subfolders handling
+  if [[ "$rel" == tasks/* ]]; then
+    sub="${rel#tasks/}"
+    echo "docs/pipeline/tasks/$sub"
+    return
+  fi
+  if [[ "$rel" == reviews/* ]]; then
+    sub="${rel#reviews/}"
+    echo "docs/pipeline/reviews/$sub"
+    return
+  fi
+  if [[ "$rel" == inbox/* ]]; then
+    rel="${rel#inbox/}"
+  fi
+
   if [[ "$rel" == */* ]]; then echo "$rel"; return; fi
   case "$base" in
     README.md|MASTER_REFERENCE*.md|package.json|package-lock.json|tsconfig.json|vite.config.ts|index.html) echo "$base" ;;
@@ -272,7 +304,13 @@ process_once() {
     local names
     names="$(printf '%s, ' "${dests[@]##*/}")"
     names="${names%, }"
-    local commit_msg="${MSG:-chore: update ${#dests[@]} file(s) from inbox: ${names:0:100}}"
+    local default_msg="chore: update ${#dests[@]} file(s) from inbox: ${names:0:100}"
+    if printf '%s\n' "${dests[@]}" | grep -q '^docs/pipeline/tasks/'; then
+      default_msg="docs(pipeline): task update: ${names:0:100}"
+    elif printf '%s\n' "${dests[@]}" | grep -q '^docs/pipeline/reviews/'; then
+      default_msg="docs(pipeline): review notes: ${names:0:100}"
+    fi
+    local commit_msg="${MSG:-$default_msg}"
     git commit -q -m "$commit_msg"
     echo "🚀 Pushing commit to $REMOTE/$current_branch..."
     if ! git push -q -u "$REMOTE" HEAD; then
@@ -289,7 +327,8 @@ process_once() {
     mkdir -p "$(dirname "$DONE/$stamp/${rels[$i]}")"
     mv -f -- "$INBOX/${rels[$i]}" "$DONE/$stamp/${rels[$i]}"
   done
-  find "$INBOX" -mindepth 1 -type d ! -path "$DONE*" -empty -delete 2>/dev/null || true
+  find "$INBOX" -mindepth 1 -type d ! -path "$DONE*" ! -path "$INBOX/tasks*" ! -path "$INBOX/inbox*" ! -path "$INBOX/reviews*" -empty -delete 2>/dev/null || true
+  mkdir -p "$INBOX/tasks" "$INBOX/inbox" "$INBOX/reviews" 2>/dev/null || true
   echo "📁 Files archived to commit/.done/$stamp/"
   flock -u 9 2>/dev/null || true
 }
