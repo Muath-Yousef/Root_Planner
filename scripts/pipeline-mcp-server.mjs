@@ -469,14 +469,14 @@ ${criteriaLines}
           {
             type: "text",
             text: [
-              `✅ Task \`${path.basename(foundPath)}\` claimed by **${agent_name}**!`,
+              `✅ Task \`${path.basename(foundPath)}\` claimed by **${safeAgent}**!`,
               `- Status: **in_progress**`,
               `- Claimed at: ${timestamp}`,
               `- GitHub sync: ${pushed ? "✅ pushed immediately" : "⚠️ local only — watcher will sync shortly"}`,
               ``,
               `**Next steps:**`,
               `1. Write your solution files to \`commit/inbox/\``,
-              `2. Run: \`bash scripts/push-commit.sh --pr ${task_id}\``,
+              `2. Run: \`bash scripts/push-commit.sh --pr ${safeTaskId}\``,
               `   → Creates branch \`${targetBranch}\` and opens a PR automatically`,
             ].join("\n"),
           },
