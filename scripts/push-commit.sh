@@ -51,7 +51,7 @@ PID_FILE="$REPO/.git/push-commit.pid"
 LOG_FILE="$REPO/.git/push-commit.log"
 
 WATCH=0; DRY=0; CHECK=1; SCAN=1; BRANCH=""; MSG=""
-ACTION=""
+ACTION=""; PR_MODE=0; PR_TASK=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -63,6 +63,7 @@ while [[ $# -gt 0 ]]; do
     --dry-run)        DRY=1 ;;
     --no-check)       CHECK=0 ;;
     --no-scan)        SCAN=0 ;;
+    --pr)             PR_MODE=1; PR_TASK="${2:-auto}"; shift ;;
     -b)               BRANCH="${2:?-b needs a branch name}"; shift ;;
     -m)               MSG="${2:?-m needs a message}"; shift ;;
     -h|--help)
@@ -223,7 +224,7 @@ process_once() {
   local files=() f
   while IFS= read -r -d '' f; do
     files+=("$f")
-  done < <(find "$INBOX" -type f ! -path "$DONE/*" ! -name '.gitkeep' ! -name '.DS_Store' ! -name '*.swp' ! -name '*~' -print0 2>/dev/null | sort -z)
+  done < <(find "$INBOX" -type f ! -path "$DONE/*" ! -name '.gitkeep' ! -name 'INBOX_GUIDE.md' ! -name '.DS_Store' ! -name '*.swp' ! -name '*~' -print0 2>/dev/null | sort -z)
 
   if (( ${#files[@]} == 0 )); then
     if (( ! WATCH )); then
@@ -265,6 +266,20 @@ process_once() {
   if ! flock -n 9; then
     echo "Another commit task is currently running; skipping this run."
     return 0
+  fi
+
+  # --- B-2: PR Mode — create ai/fix-* branch automatically ---
+  if (( PR_MODE )); then
+    local auto_task="$PR_TASK"
+    if [[ "$auto_task" == "auto" ]]; then
+      auto_task=$(find "$INBOX/inbox" "$INBOX/tasks" -name "*.md" 2>/dev/null \
+        | xargs grep -hoP 'TASK_REF:\s*\K\S+' 2>/dev/null | head -1 || true)
+      [[ -z "$auto_task" ]] && auto_task="$(date +%Y%m%d%H%M%S)"
+    fi
+    local ai_branch="ai/fix-${auto_task,,}"
+    echo "🌿 PR mode: switching to branch $ai_branch"
+    git checkout -q "$ai_branch" 2>/dev/null || git checkout -q -b "$ai_branch"
+    BRANCH="$ai_branch"
   fi
 
   # Branch handling
@@ -312,44 +327,99 @@ process_once() {
     fi
     local commit_msg="${MSG:-$default_msg}"
     git commit -q -m "$commit_msg"
-    echo "🚀 Pushing commit to $REMOTE/$current_branch..."
-    if ! git push -q -u "$REMOTE" HEAD; then
-      echo "❌ PUSH FAILED: Commit saved locally. Check network or remote permissions." >&2
+
+    # --- B-1: Retry State Machine — 3 attempts with failure tracking ---
+    local push_ok=false
+    local retry=0
+    while (( retry < 3 )); do
+      if git push -q -u "$REMOTE" HEAD; then
+        push_ok=true
+        break
+      fi
+      retry=$(( retry + 1 ))
+      if (( retry < 3 )); then
+        echo "⚠️  Push attempt $retry/3 failed, retrying in 10s..." >&2
+        sleep 10
+        git pull --rebase --autostash -q "$REMOTE" "$current_branch" 2>/dev/null || true
+      fi
+    done
+
+    if $push_ok; then
+      echo "✅ Successfully pushed commit: $(git log -1 --format='%h %s')"
+      if (( PR_MODE )); then
+        echo "🔀 PR branch pushed → GitHub Actions will open a PR automatically."
+        echo "   Branch: $current_branch"
+      fi
+    else
+      # Archive failure with full report (files stay in inbox for retry)
+      local stamp_fail
+      stamp_fail="$(date +%Y%m%d-%H%M%S)"
+      local fail_dir="$DONE/failed/$stamp_fail"
+      mkdir -p "$fail_dir"
+      cat > "$fail_dir/PUSH_FAILURE.txt" << FAILEOF
+TIMESTAMP: $stamp_fail
+BRANCH: $current_branch
+FILES: ${rels[*]}
+LAST_COMMIT: $(git log -1 --format='%h %s' 2>/dev/null || echo "unknown")
+GIT_STATUS: $(git status --short 2>/dev/null | head -10 || echo "unknown")
+ACTION_REQUIRED: Check network, SSH keys, or remote permissions.
+RETRY_COMMAND: cd "$REPO" && git push -u "$REMOTE" HEAD
+FAILEOF
+      for i in "${!rels[@]}"; do
+        mkdir -p "$(dirname "$fail_dir/${rels[$i]}")"
+        cp -f -- "$INBOX/${rels[$i]}" "$fail_dir/${rels[$i]}" 2>/dev/null || true
+      done
+      echo "❌ PUSH FAILED after 3 attempts. Report: $fail_dir/PUSH_FAILURE.txt" >&2
+      echo "   Files kept in inbox for next retry." >&2
+      flock -u 9 2>/dev/null || true
       return 1
     fi
-    echo "✅ Successfully pushed commit: $(git log -1 --format='%h %s')"
   fi
 
-  # Archive processed files
+  # Archive processed files (only on success)
   local stamp
   stamp="$(date +%Y%m%d-%H%M%S)"
+  local done_success="$DONE/success/$stamp"
   for i in "${!rels[@]}"; do
-    mkdir -p "$(dirname "$DONE/$stamp/${rels[$i]}")"
-    mv -f -- "$INBOX/${rels[$i]}" "$DONE/$stamp/${rels[$i]}"
+    mkdir -p "$(dirname "$done_success/${rels[$i]}")"
+    mv -f -- "$INBOX/${rels[$i]}" "$done_success/${rels[$i]}"
   done
   find "$INBOX" -mindepth 1 -type d ! -path "$DONE*" ! -path "$INBOX/tasks*" ! -path "$INBOX/inbox*" ! -path "$INBOX/reviews*" -empty -delete 2>/dev/null || true
   mkdir -p "$INBOX/tasks" "$INBOX/inbox" "$INBOX/reviews" 2>/dev/null || true
-  echo "📁 Files archived to commit/.done/$stamp/"
+  echo "📁 Files archived to commit/.done/success/$stamp/"
   flock -u 9 2>/dev/null || true
 }
 
 watch_loop() {
   echo "👀 Watching $INBOX for files (PID: $$)..."
+  local last_trigger=0
+  local DEBOUNCE_SECS=2
+
   while true; do
     # Check if there are files
     local count
-    count="$(find "$INBOX" -type f ! -path "$DONE/*" ! -name '.gitkeep' ! -name '.DS_Store' ! -name '*.swp' 2>/dev/null | wc -l)"
+    count="$(find "$INBOX" -type f ! -path "$DONE/*" ! -name '.gitkeep' ! -name 'INBOX_GUIDE.md' ! -name '.DS_Store' ! -name '*.swp' 2>/dev/null | wc -l)"
     if (( count > 0 )); then
-      sleep 1
+      # --- A-2: Debounce — انتظر حتى تهدأ الكتابات المتتالية ---
+      local now
+      now=$(date +%s)
+      local diff=$(( now - last_trigger ))
+      if (( diff < DEBOUNCE_SECS )); then
+        sleep $(( DEBOUNCE_SECS - diff + 1 ))
+      else
+        sleep 1
+      fi
       process_once || echo "⚠️ Warning: Processing failed, will retry on next change" >&2
+      last_trigger=$(date +%s)
     fi
 
-    # Event wait
+    # --- A-1: Event wait — مراقبة عودية لكل الـ subfolders ---
     if command -v inotifywait >/dev/null 2>&1; then
       inotifywait -qq -r -e close_write,moved_to,create --exclude '/\.done/' "$INBOX" 2>/dev/null || sleep 2
     elif command -v python3 >/dev/null 2>&1; then
       python3 -c "
-import os, select, sys, ctypes
+import os, select, sys, ctypes, time
+
 try:
     libc = ctypes.CDLL(None)
     libc.inotify_init.restype = ctypes.c_int
@@ -357,14 +427,22 @@ try:
     libc.inotify_add_watch.argtypes = [ctypes.c_int, ctypes.c_char_p, ctypes.c_uint32]
     fd = libc.inotify_init()
     if fd >= 0:
-        p = sys.argv[1].encode('utf-8')
-        libc.inotify_add_watch(fd, p, 0x00000008 | 0x00000080 | 0x00000100)
+        IN_CLOSE_WRITE = 0x00000008
+        IN_CREATE      = 0x00000100
+        IN_MOVED_TO    = 0x00000080
+        mask = IN_CLOSE_WRITE | IN_CREATE | IN_MOVED_TO
+        root = sys.argv[1]
+        # مراقبة عودية — كل subfolder بشكل صريح (A-1 fix)
+        for dirpath, dirnames, _ in os.walk(root):
+            dirnames[:] = [d for d in dirnames if d != '.done']
+            p = dirpath.encode('utf-8')
+            libc.inotify_add_watch(fd, p, mask)
         poll = select.poll()
         poll.register(fd, select.POLLIN)
         poll.poll(3000)
         os.close(fd)
 except Exception:
-    import time; time.sleep(2)
+    time.sleep(2)
 " "$INBOX" 2>/dev/null || sleep 2
     else
       sleep 2

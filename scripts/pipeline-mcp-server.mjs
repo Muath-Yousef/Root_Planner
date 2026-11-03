@@ -436,16 +436,33 @@ ${criteriaLines}
       } else {
         content += `\nSTATUS: in_progress\n`;
       }
-
       content += `CLAIMED_BY: ${agent_name}\nCLAIMED_AT: ${timestamp}\n`;
 
       fs.writeFileSync(foundPath, content, "utf8");
 
+      // --- B-3: Push claim status immediately so Analyzer can see it ---
+      const relPath = foundPath.replace(REPO + "/", "");
+      const pushResult = safeExec(
+        `git add "${relPath}" && git commit -m "chore(pipeline): claim ${task_id} by ${agent_name}" && git push -q origin HEAD`
+      );
+      const pushed = !pushResult.includes("error") && !pushResult.includes("Error");
+
+      const targetBranch = `ai/fix-${task_id.replace(/^TASK_/, "").toLowerCase()}`;
       return {
         content: [
           {
             type: "text",
-            text: `✅ Task \`${path.basename(foundPath)}\` claimed by **${agent_name}**!\n- Status set to: **in_progress**\n- Claimed at: ${timestamp}\n\nYou can now implement the solution in \`commit/inbox/\` and push to branch \`ai/fix-${task_id.replace(/^TASK_/, "").toLowerCase()}\`.`,
+            text: [
+              `✅ Task \`${path.basename(foundPath)}\` claimed by **${agent_name}**!`,
+              `- Status: **in_progress**`,
+              `- Claimed at: ${timestamp}`,
+              `- GitHub sync: ${pushed ? "✅ pushed immediately" : "⚠️ local only — watcher will sync shortly"}`,
+              ``,
+              `**Next steps:**`,
+              `1. Write your solution files to \`commit/inbox/\``,
+              `2. Run: \`bash scripts/push-commit.sh --pr ${task_id}\``,
+              `   → Creates branch \`${targetBranch}\` and opens a PR automatically`,
+            ].join("\n"),
           },
         ],
       };
@@ -569,5 +586,27 @@ ${gitLog}
   }
 });
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+// --- B-5: Graceful Shutdown ---
+async function main() {
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+  console.error(`✅ Pipeline MCP Server v2.0 running (PID: ${process.pid})`);
+}
+
+const shutdown = async (signal) => {
+  console.error(`\n🛑 Received ${signal}. Shutting down gracefully...`);
+  try { await server.close(); } catch (_) {}
+  process.exit(0);
+};
+
+process.on("SIGINT",  () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("uncaughtException", (err) => {
+  console.error("💥 Uncaught exception:", err);
+  process.exit(1);
+});
+
+main().catch((err) => {
+  console.error("💥 Fatal startup error:", err);
+  process.exit(1);
+});

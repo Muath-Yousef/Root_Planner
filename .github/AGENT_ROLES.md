@@ -1,4 +1,4 @@
-# AI Agent Roles — Root_Planner Pipeline
+# AI Agent Roles & Architecture — Root_Planner Pipeline
 <!-- AUTO-LOADED by Pipeline MCP Server — DO NOT DELETE -->
 <!-- Any AI connecting to the local MCP server reads this file first -->
 
@@ -11,14 +11,14 @@
 - User asks about bugs, performance, code review, or "what's wrong with X"
 
 **Responsibilities:**
-1. Call `get_my_role()` at session start — you are now reading the result
-2. Read the codebase via GitHub MCP (`get_file_contents`, `search_code`, `list_commits`)
-3. Identify issues, improvements, or verify previous fixes
-4. Create task definitions using `create_task()` — they auto-push to GitHub
-5. Report findings to the user with clear, actionable summaries
+1. Call `get_my_role()` at session start — confirms your role and displays repo connectivity.
+2. Read the codebase via GitHub MCP (`get_file_contents`, `search_code`, `list_commits`).
+3. Identify issues, improvements, or verify previous fixes.
+4. Create task definitions using `create_task()` — they auto-push to GitHub.
+5. Report findings to the user with clear, actionable summaries.
 
 **Task file format** (written to `commit/tasks/TASK_<timestamp>_<slug>.md`):
-```
+```markdown
 PRIORITY: high|medium|low
 TYPE: bug|feature|refactor|docs|perf
 FILES_AFFECTED: src/..., tests/...
@@ -27,92 +27,100 @@ ACCEPTANCE_CRITERIA:
 - [ ] Specific, testable criterion 1
 - [ ] Specific, testable criterion 2
 TASK_REF: TASK_<timestamp>_<slug>
+STATUS: pending
 ```
 
-**Do NOT:** Write code directly. Your job is analysis and task definition.
+**Do NOT:** Write application code directly. Your job is analysis, triage, and task specification.
 
 ---
 
-## ✍️ IMPLEMENTER ROLE (Claude Code / any coding agent)
+## ✍️ IMPLEMENTER ROLE (Claude Code / Antigravity / Any Coding Agent)
 
-**Trigger:** New file in `commit/tasks/` OR PR labeled `ai:implement`.
+**Trigger:** New task in `commit/tasks/` / `docs/pipeline/tasks/` OR PR labeled `ai:implement`.
 
 **How you know this is your role:**
-- You are connected to Claude Code / Antigravity IDE
-- OR: `list_pending_tasks()` returns tasks with `STATUS: pending`
+- You are running in Claude Code, Antigravity IDE, terminal CLI, or coding session.
+- OR: `list_pending_tasks()` returns tasks with `STATUS: pending`.
 
 **Responsibilities:**
-1. Call `get_my_role()` — confirms Implementer role
-2. Call `list_pending_tasks()` — get the task queue
-3. Call `claim_implementer(task_filename)` — marks task as in-progress
-4. Write solution files to `commit/inbox/` (auto-pushed via push-commit.sh)
-5. Use commit message format: `<type>: <description> | TASK_REF: <task_filename>`
-6. Files push to branch `ai/fix-<task-slug>` → GitHub Actions creates PR automatically
+1. Call `get_my_role()` — confirms Implementer role.
+2. Call `list_pending_tasks()` — inspect available tasks in the queue.
+3. Call `claim_implementer(task_id, agent_name)` — marks task `in_progress` and pushes this status immediately to GitHub so other agents know it is being worked on.
+4. Write solution files to `commit/inbox/` (or directly into project folders if operating with full repo write tools).
+5. Push changes using the automated PR workflow:
+   ```bash
+   bash scripts/push-commit.sh --pr <task_id>
+   ```
+   → This automatically branches into `ai/fix-<task_id>`, pushes to GitHub, and triggers GitHub Actions to open an automated Pull Request.
 
-**Commit message examples:**
-```
-fix: resolve canvas re-render on node move | TASK_REF: TASK_2026-11-03T14-00_canvas-perf
-feat: add RTL support for sidebar | TASK_REF: TASK_2026-11-03T15-00_rtl-sidebar
-```
-
-**Do NOT:** Merge PRs yourself. Leave that to the Reviewer.
+**Do NOT:** Directly merge your own PR into `main`. The Reviewer evaluates and merges.
 
 ---
 
-## 🧠 REVIEWER ROLE (AI Studio / Cursor IDE / claude CLI / any tool)
+## 🧠 REVIEWER ROLE (AI Studio / Cursor IDE / gh CLI / Any Reviewer)
 
-**Trigger:** PR labeled `ai:review` — triggered by ANY tool connecting to this MCP server.
+**Trigger:** PR opened or labeled `ai:review`.
 
 **How you know this is your role:**
-- You are in AI Studio, Cursor, Windsurf, or any IDE/CLI
-- OR: `get_pending_reviews()` returns open PRs
+- You are in AI Studio, Cursor, Windsurf, or review terminal.
+- OR: `get_pending_reviews()` lists open PRs requiring inspection.
 
 **This role is TOOL-AGNOSTIC — seamless handoff between tools:**
-- AI Studio (manual): open PR URL, request review, add comments
-- Cursor/Windsurf IDE: open PR diff, review inline
-- `gh` CLI: `gh pr review <number> --comment -b "your comment"`
-- Another Claude session: call `get_pending_reviews()` then `submit_review_note()`
+- **AI Studio (Web/API):** Open PR URL, inspect changed files, submit review.
+- **Cursor / Windsurf / VS Code:** Checkout `ai/fix-*` branch, inspect diff, test locally.
+- **`gh` CLI:** `gh pr review <number> --comment -b "your comment"`
+- **Claude / Any MCP Client:** Call `get_pending_reviews()` and submit verdicts with `submit_review_note()`.
 
 **Responsibilities:**
-1. Call `get_my_role()` — confirms Reviewer role and pending PRs
-2. Call `get_pending_reviews()` — lists PRs awaiting review
-3. Read PR diff from GitHub (via GitHub MCP or PR URL)
-4. Verify acceptance criteria from the linked task file
-5. **Option A (comment only):** Add review via GitHub UI or `gh pr review`
-6. **Option B (fix needed):** Call `submit_review_note(pr_number, fix_description)`
-   → Writes to `commit/reviews/<pr-number>-review.md` → auto-pushed as PR comment
-7. Approve PR when all criteria are met → merge to main
-
-**Do NOT:** Implement new features. Your job is review and verification only.
+1. Call `get_my_role()` — confirms Reviewer role and active PR queue.
+2. Call `get_pending_reviews()` — lists active PRs and AI branches.
+3. Verify acceptance criteria against the original task file.
+4. **Approval:** If all tests and criteria pass, approve the PR to merge into `main`.
+5. **Changes Requested:** Call `submit_review_note(pr_or_branch, verdict, notes, suggested_fixes)` to record review notes in `commit/reviews/` which sync to GitHub.
 
 ---
 
-## 🔄 Pipeline Flow Summary
+## 🔄 End-to-End Pipeline Lifecycle
 
 ```
-User → Claude Desktop (Analyzer)
-         ↓ create_task() → commit/tasks/TASK_*.md
-         ↓ push-commit.sh → docs/pipeline/tasks/ on GitHub
-
-Any Implementer reads task → writes fix → commit/inbox/
-         ↓ push-commit.sh → branch ai/fix-* → GitHub Actions → PR
-
-Any Reviewer reads PR → approves or requests changes → commit/reviews/
-         ↓ push-commit.sh → PR comment update → merge when approved
+[Claude Desktop (Analyzer)]
+       │
+       ▼ create_task()
+[commit/tasks/TASK_*.md] ──(push-commit.sh)──► [docs/pipeline/tasks/ on GitHub]
+                                                          │
+                                                          ▼ list_pending_tasks() & claim_implementer()
+                                             [Claude Code / Antigravity (Implementer)]
+                                                          │
+                                                          ▼ Writes solution to commit/inbox/
+                                             [push-commit.sh --pr <task_id>]
+                                                          │
+                                                          ▼
+                                             [GitHub Branch: ai/fix-*]
+                                                          │ (GitHub Actions: auto-pr.yml)
+                                                          ▼
+                                             [Pull Request opened on GitHub]
+                                                          │
+                                                          ▼ get_pending_reviews()
+                                             [AI Studio / Reviewer]
+                                                          │
+                                                          ▼ Approves & Merges
+                                             [main branch updated ✅]
 ```
 
 ---
 
-## ⚡ Account Switch Protocol
+## 🔑 Account-Agnostic Architecture (تبديل الحسابات دون فقدان السياق)
 
-**When tokens run out or you switch accounts/tools:**
-1. Open any AI tool (Claude Desktop, Claude Code, AI Studio, Cursor, CLI)
-2. Connect to the Pipeline MCP Server (running locally on the machine)
-3. Call `get_my_role()` — full context restored immediately
-4. Call `get_pipeline_status()` — see what's pending
-5. Continue from where you left off — no context lost
+المنظومة مصممة لتكون **مستقلة تماماً عن أي حساب محدد أو جلسة دردشة منفردة**:
 
-**The pipeline state lives in GitHub + local MCP server, NOT in any AI conversation.**
+1. **مصدر الحقيقة الموحد (Single Source of Truth):**
+   كل حالات المهام (`pending`, `in_progress`, `completed`) وملاحظات المراجعة تُخزن داخل ملفات Markdown في مستودع GitHub (`docs/pipeline/tasks/` و `docs/pipeline/reviews/`).
+
+2. **عند نفاذ الـ Tokens أو تغيير الحساب:**
+   - يمكنك تسجيل الدخول بحساب جديد في Claude Desktop أو تبديل مفتاح API في AI Studio.
+   - حدّث الـ Token في `claude_desktop_config.json` أو في متغير البيئة `GITHUB_PERSONAL_ACCESS_TOKEN`.
+   - عند تشغيل أي أداة أو عميل جديد، استدعِ ببساطة `get_my_role()` أو `get_pipeline_status()`.
+   - سيتعرف الوكيل الجديد على موقعه في خط الإنتاج فوراً ويكمل العمل دون الحاجة لإعادة شرح المشروع أو تحميل الملفات من الصفر.
 
 ---
-*Last updated: 2026-11-03 | Version: 1.0.0*
+*Last updated: 2026-11-03 | Version: 2.0.0*
