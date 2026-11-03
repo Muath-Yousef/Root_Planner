@@ -372,6 +372,7 @@ describe('UI Integration Tests (Done When paths)', () => {
       fireEvent.keyDown(document.body, { key: 'k', ctrlKey: true });
     });
     expect(useStudio.getState().commandPaletteOpen).toBe(true);
+    await waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
 
     // Escape closes palette and restores focus to opener element
     act(() => {
@@ -390,6 +391,7 @@ describe('UI Integration Tests (Done When paths)', () => {
       fireEvent.keyDown(dockSearch, { key: 'k', ctrlKey: true });
     });
     expect(useStudio.getState().commandPaletteOpen).toBe(true);
+    await waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
 
     // Escape closes palette and restores focus to dock search input
     act(() => {
@@ -421,6 +423,7 @@ describe('UI Integration Tests (Done When paths)', () => {
       fireEvent.keyDown(dockItem, { key: 'Enter' });
     });
     expect(useStudio.getState().factoryModal).not.toBeNull();
+    await waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
 
     // Escape closes factory modal
     act(() => {
@@ -457,6 +460,7 @@ describe('UI Integration Tests (Done When paths)', () => {
 
     expect(useStudio.getState().infoModalRoleId).not.toBeNull();
     expect(useStudio.getState().nodes.length).toBe(countBeforeInfo);
+    await waitFor(() => expect(document.querySelector('[role="dialog"]')).not.toBeNull());
 
     act(() => {
       fireEvent.keyDown(window, { key: 'Escape' });
@@ -533,8 +537,11 @@ describe('UI Integration Tests (Done When paths)', () => {
       });
       expect(spec.isOpen(), `Modal ${spec.name} should open`).toBe(true);
 
-      const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
-      expect(dialog, `Dialog for ${spec.name} must be rendered`).not.toBeNull();
+      const dialog = await waitFor(() => {
+        const d = document.querySelector('[role="dialog"]') as HTMLElement;
+        expect(d, `Dialog for ${spec.name} must be rendered`).not.toBeNull();
+        return d;
+      });
       expect(dialog.getAttribute('aria-modal')).toBe('true');
       expect(dialog.getAttribute('aria-labelledby') || dialog.getAttribute('aria-label')).toBeTruthy();
 
@@ -664,8 +671,11 @@ describe('UI Integration Tests (Done When paths)', () => {
     act(() => {
       useStudio.getState().setConfigEditorModalOpen(true);
     });
-    const configDialog = document.querySelector('[role="dialog"]') as HTMLElement;
-    expect(configDialog).not.toBeNull();
+    const configDialog = await waitFor(() => {
+      const d = document.querySelector('[role="dialog"]') as HTMLElement;
+      expect(d).not.toBeNull();
+      return d;
+    });
     const configInput = configDialog.querySelector('textarea, input') as HTMLElement;
     expect(configInput).not.toBeNull();
     configInput.focus();
@@ -685,8 +695,11 @@ describe('UI Integration Tests (Done When paths)', () => {
     act(() => {
       useStudio.getState().setCliModalOpen(true);
     });
-    const cliDialog = document.querySelector('[role="dialog"]') as HTMLElement;
-    expect(cliDialog).not.toBeNull();
+    const cliDialog = await waitFor(() => {
+      const d = document.querySelector('[role="dialog"]') as HTMLElement;
+      expect(d).not.toBeNull();
+      return d;
+    });
     const cliInput = cliDialog.querySelector('input') as HTMLInputElement;
     expect(cliInput).not.toBeNull();
     cliInput.focus();

@@ -82,7 +82,7 @@ export function ProtocolEdge(p: EdgeProps<SEdge>) {
               style={{
                 backgroundColor: '#090d16',
                 borderColor: def.color,
-                color: def.color,
+                color: def.color === '#ef4b4b' ? '#f87171' : def.color,
               }}
               title={`${def.label[lang] ?? p.data!.kind}`}
             >

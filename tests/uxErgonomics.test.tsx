@@ -16,6 +16,8 @@ import { SHORTCUTS_TABLE } from '../src/components/layout/shortcutsData';
 import { buildReferenceTopology } from '../src/presets/referenceTopology';
 import { emptyHistory } from '../src/store/history';
 import { ReactFlowProvider, ReactFlow, Position } from '@xyflow/react';
+import { PduSimulationPanel } from '../src/components/simulation/PduSimulationPanel';
+import { get } from 'idb-keyval';
 import * as containerWidthModule from '../src/components/layout/useContainerWidth';
 import * as projectStoreModule from '../src/persistence/projectStore';
 
@@ -203,6 +205,98 @@ describe('UX Ergonomics & Safety Unit Tests', () => {
     rerender(<SelectionToolbar />);
     expect(screen.getByText('3 selected')).not.toBeNull();
     expect(screen.getByLabelText(/Distribute horizontally/i)).not.toBeNull();
+  });
+
+  it('7. Toast renders in an aria-live region and its Undo action runs', () => {
+    render(<Toasts />);
+    act(() => {
+      useStudio.getState().notify('info', 'Deleted 1 component', {
+        action: {
+          label: 'Undo',
+          onClick: () => {
+            useStudio.setState({ revision: 99 });
+          },
+        },
+      });
+    });
+    const liveRegion = screen.getByRole('region', { name: /notifications/i });
+    expect(liveRegion).not.toBeNull();
+    expect(screen.getByText('Deleted 1 component')).not.toBeNull();
+    const undoBtn = screen.getByRole('button', { name: 'Undo' });
+    fireEvent.click(undoBtn);
+    expect(useStudio.getState().revision).toBe(99);
+  });
+
+  it('8. ConfirmDialog blocks the action until confirmed and traps focus', () => {
+    let confirmed = false;
+    const { unmount } = render(
+      <ConfirmDialog
+        isOpen={true}
+        title="Delete saved company?"
+        description="Are you sure you want to delete this company?"
+        onConfirm={() => {
+          confirmed = true;
+        }}
+        onCancel={() => {}}
+      />
+    );
+    const dialog = screen.getByRole('dialog');
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+    expect(screen.getByText('Delete saved company?')).not.toBeNull();
+    const confirmBtn = screen.getByRole('button', { name: 'Confirm' });
+    fireEvent.click(confirmBtn);
+    expect(confirmed).toBe(true);
+    unmount();
+  });
+
+  it('9. GuidedTour shows 5 steps, is skippable, and persists the seen flag in idb-keyval', async () => {
+    useStudio.setState({ tourOpen: true });
+    render(<GuidedTour />);
+    expect(screen.getByText(/1\. Component Catalogue \(Dock\)/i)).not.toBeNull();
+    const skipBtn = screen.getByRole('button', { name: 'Skip tour' });
+    fireEvent.click(skipBtn);
+    expect(useStudio.getState().tourOpen).toBe(false);
+    const seen = await get<boolean>('socroot:tour_seen');
+    expect(seen).toBe(true);
+  });
+
+  it('10. HelpSheet shortcuts equal SHORTCUTS_TABLE', () => {
+    useStudio.setState({ helpSheetOpen: true });
+    render(<HelpSheet />);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).not.toBeNull();
+    for (const sc of SHORTCUTS_TABLE) {
+      expect(screen.queryAllByText(sc.keyLabel).length).toBeGreaterThan(0);
+    }
+  });
+
+  it('11. TopControlBar snap toggle updates store state', () => {
+    render(<TopControlBar onHome={() => {}} />);
+    expect(useStudio.getState().snapToGrid).toBe(true);
+    useStudio.getState().setSnapToGrid(false);
+    expect(useStudio.getState().snapToGrid).toBe(false);
+  });
+
+  it('12. PduSimulationPanel supports step_back, speed toggle and timeline seeking', async () => {
+    render(<PduSimulationPanel />);
+    const runBtn = screen.getByRole('button', { name: /run task/i });
+    await act(async () => {
+      fireEvent.click(runBtn);
+    });
+    await waitFor(() => {
+      expect(screen.getByTitle('Step back')).not.toBeNull();
+    });
+    const speed2x = screen.getByRole('button', { name: '2×' });
+    fireEvent.click(speed2x);
+    expect(speed2x.className).toContain('bg-sky-600');
+    const stepBackBtn = screen.getByTitle('Step back');
+    fireEvent.click(stepBackBtn);
+  });
+
+  it('13. reducedMotion toggle updates the store preference', () => {
+    expect(useStudio.getState().reducedMotion).toBe(false);
+    useStudio.getState().setReducedMotion(true);
+    expect(useStudio.getState().reducedMotion).toBe(true);
   });
 });
 

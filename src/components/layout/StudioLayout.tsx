@@ -15,39 +15,19 @@ import { ConfirmDialog } from '../common/ConfirmDialog';
 import { useT } from '../../i18n/useT';
 import { get } from 'idb-keyval';
 
-function createLazy<P extends object>(
-  loader: () => Promise<Record<string, React.ComponentType<P>>>,
-  exportName: string
-): React.ComponentType<P> {
-  let loadedComponent: React.ComponentType<P> | null = null;
-  const promise = loader().then((m) => {
-    loadedComponent = m[exportName];
-    return { default: m[exportName] };
-  });
-  const LazyComp = lazy(() => promise);
-
-  return function LazyWrapper(props: P) {
-    if (loadedComponent) {
-      const Comp = loadedComponent;
-      return <Comp {...props} />;
-    }
-    return <LazyComp {...props} />;
-  };
-}
-
-const DeviceInspectorDrawer = createLazy(() => import('../inspector/DeviceInspectorDrawer'), 'DeviceInspectorDrawer');
-const EmployeeFactoryModal = createLazy(() => import('../modals/EmployeeFactoryModal'), 'EmployeeFactoryModal');
-const SocrootAdminCliModal = createLazy(() => import('../modals/SocrootAdminCliModal'), 'SocrootAdminCliModal');
-const BreakGlassModal = createLazy(() => import('../modals/BreakGlassModal'), 'BreakGlassModal');
-const CompanyTenantModal = createLazy(() => import('../modals/CompanyTenantModal'), 'CompanyTenantModal');
-const KillPlaneModal = createLazy(() => import('../modals/KillPlaneModal'), 'KillPlaneModal');
-const ExportBundleModal = createLazy(() => import('../modals/ExportBundleModal'), 'ExportBundleModal');
-const CommandPaletteModal = createLazy(() => import('../modals/CommandPaletteModal'), 'CommandPaletteModal');
-const ComponentInfoModal = createLazy(() => import('../modals/ComponentInfoModal'), 'ComponentInfoModal');
-const CableDetailModal = createLazy(() => import('../modals/CableDetailModal'), 'CableDetailModal');
-const ConfigEditorModal = createLazy(() => import('../modals/ConfigEditorModal'), 'ConfigEditorModal');
-const GuidedTour = createLazy(() => import('../guidance/GuidedTour'), 'GuidedTour');
-const HelpSheet = createLazy(() => import('../guidance/HelpSheet'), 'HelpSheet');
+const DeviceInspectorDrawer = lazy(() => import('../inspector/DeviceInspectorDrawer').then((m) => ({ default: m.DeviceInspectorDrawer })));
+const EmployeeFactoryModal = lazy(() => import('../modals/EmployeeFactoryModal').then((m) => ({ default: m.EmployeeFactoryModal })));
+const SocrootAdminCliModal = lazy(() => import('../modals/SocrootAdminCliModal').then((m) => ({ default: m.SocrootAdminCliModal })));
+const BreakGlassModal = lazy(() => import('../modals/BreakGlassModal').then((m) => ({ default: m.BreakGlassModal })));
+const CompanyTenantModal = lazy(() => import('../modals/CompanyTenantModal').then((m) => ({ default: m.CompanyTenantModal })));
+const KillPlaneModal = lazy(() => import('../modals/KillPlaneModal').then((m) => ({ default: m.KillPlaneModal })));
+const ExportBundleModal = lazy(() => import('../modals/ExportBundleModal').then((m) => ({ default: m.ExportBundleModal })));
+const CommandPaletteModal = lazy(() => import('../modals/CommandPaletteModal').then((m) => ({ default: m.CommandPaletteModal })));
+const ComponentInfoModal = lazy(() => import('../modals/ComponentInfoModal').then((m) => ({ default: m.ComponentInfoModal })));
+const CableDetailModal = lazy(() => import('../modals/CableDetailModal').then((m) => ({ default: m.CableDetailModal })));
+const ConfigEditorModal = lazy(() => import('../modals/ConfigEditorModal').then((m) => ({ default: m.ConfigEditorModal })));
+const GuidedTour = lazy(() => import('../guidance/GuidedTour').then((m) => ({ default: m.GuidedTour })));
+const HelpSheet = lazy(() => import('../guidance/HelpSheet').then((m) => ({ default: m.HelpSheet })));
 
 /** The working screen: top bar, canvas, side panel (dockable tabs for Problems and Simulation), dock, status bar. */
 export function StudioLayout({ onHome }: { onHome: () => void }) {

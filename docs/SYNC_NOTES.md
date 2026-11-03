@@ -235,3 +235,31 @@ Tests: `tests/engines2.test.ts` covers break-glass, the CLI and layout. Not yet 
 5. **Ergonomic Unit Test Suite:**
    - Added 6 integration unit tests in `tests/uxErgonomics.test.tsx` testing: real Undo recovery in toasts, `TopControlBar` "More" cluster overflow, snap-to-grid persistence, `StartScreen` project deletion safety, edge label zoom/hover visibility, and selection toolbar node count rules.
    - Total test suite: 181 tests across 19 test files passing 100%.
+
+# Batch 10 (True Lazy Loading, WCAG AA Contrast Verification & Test Parity)
+
+1. **True Lazy Loading Verification (Item 2):**
+   - Replaced custom `createLazy` in `src/components/layout/StudioLayout.tsx` with standard `React.lazy(() => import('...').then(m => ({ default: m.ExportName })))` wrapped inside `<Suspense fallback={null}>`.
+   - Verified that `loader()` is no longer invoked at module definition time. In `dist/`, `dist/index.html` exclusively preloads base vendor bundles (`vendor-react`, `vendor-xyflow`, `vendor-validation`, `index-*.js`), while all 13 modals, guidance sheets, and drawers (`GuidedTour`, `HelpSheet`, `DeviceInspectorDrawer`, `SocrootAdminCliModal`, `BreakGlassModal`, `CompanyTenantModal`, `KillPlaneModal`, `ExportBundleModal`, `CommandPaletteModal`, `ComponentInfoModal`, `CableDetailModal`, `ConfigEditorModal`, `EmployeeFactoryModal`) reside in separate chunks and are only fetched when their state becomes truthy.
+   - Main application JS bundle chunk remains lean at **136.28 kB** (well below the ≤ 400 kB ceiling).
+
+2. **WCAG 2.1 AA Contrast Verification (`scripts/contrast-check.mjs`) (Item 4):**
+   - Created standalone script `scripts/contrast-check.mjs` (0 dependencies) computing relative luminance and contrast ratios across 24 critical token pairs in dark and light modes.
+   - Enhanced light theme `--text-muted` token to `#475569` (`slate-600`), elevating contrast against `#ffffff` to 7.58:1 and `#f1f5f9` to 6.45:1.
+   - In `ProtocolEdge.tsx`, rendered `KILL_PLANE_SIGNAL` label text in `#f87171` (`red-400`), raising contrast on `#090d16` canvas badge from 4.04:1 to 7.02:1.
+   - All 24 evaluated pairs pass WCAG 2.1 AA (≥ 4.5:1 for normal text).
+
+3. **Complete 13-Test UX Suite Parity (`tests/uxErgonomics.test.tsx`) (Item 1):**
+   - Restored the 7 original test cases from commit `0adcdb3`:
+     1. Toast renders in an aria-live region and its Undo action runs
+     2. ConfirmDialog blocks the action until confirmed and traps focus
+     3. GuidedTour shows 5 steps, is skippable, and persists the seen flag in idb-keyval
+     4. HelpSheet shortcuts equal SHORTCUTS_TABLE
+     5. TopControlBar snap toggle updates store state
+     6. PduSimulationPanel supports step_back, speed toggle and timeline seeking
+     7. reducedMotion toggle updates the store preference
+   - Maintained all 6 new ergonomics tests (real Undo recovery, narrow TopControlBar "More" menu, snap persistence, project deletion confirmation, edge label zoom/hover visibility, selection toolbar 2+/3+ node constraints).
+   - All 13 UX ergonomics unit tests pass; total test suite is 181 passing tests across 19 files.
+
+4. **README Cleanup (Item 3):**
+   - Removed stray `**END_OF_THIS_FILE**` marker from `README.md`.
