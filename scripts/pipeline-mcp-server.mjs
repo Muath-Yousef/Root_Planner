@@ -36,6 +36,15 @@ function safeExec(cmd, cwd = REPO) {
   }
 }
 
+function safeExecResult(cmd, cwd = REPO) {
+  try {
+    const out = execSync(cmd, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
+    return { ok: true, output: out };
+  } catch (err) {
+    return { ok: false, output: "", error: String(err?.message || err) };
+  }
+}
+
 function getGithubToken() {
   if (process.env.GITHUB_PERSONAL_ACCESS_TOKEN) return process.env.GITHUB_PERSONAL_ACCESS_TOKEN;
   if (process.env.GITHUB_TOKEN) return process.env.GITHUB_TOKEN;
@@ -319,11 +328,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       const now = new Date();
       const dateStr = now.toISOString().replace(/[-:T.]/g, "").slice(0, 14);
-      const slug = title
+      let slug = title
         .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/[^a-z0-9؀-ۿ]+/g, "-")
         .replace(/^-+|-+$/g, "")
         .slice(0, 40);
+      if (!slug || slug === "-") {
+        slug = `task-${dateStr.slice(-6)}`;
+      }
 
       const taskId = `TASK_${dateStr}_${slug}`;
       const filename = `${taskId}.md`;
@@ -364,10 +376,11 @@ ${criteriaLines}
     }
 
     case "get_task_details": {
-      const { task_id } = args;
+      const rawTaskId = String(args.task_id || "");
+      const safeTaskId = path.basename(rawTaskId).replace(/\.md$/, "");
       const candidates = [
-        path.join(COMMIT_TASKS_DIR, task_id.endsWith(".md") ? task_id : `${task_id}.md`),
-        path.join(DOCS_TASKS_DIR, task_id.endsWith(".md") ? task_id : `${task_id}.md`),
+        path.join(COMMIT_TASKS_DIR, `${safeTaskId}.md`),
+        path.join(DOCS_TASKS_DIR, `${safeTaskId}.md`),
       ];
 
       let foundPath = "";
@@ -408,10 +421,13 @@ ${criteriaLines}
     }
 
     case "claim_implementer": {
-      const { task_id, agent_name = "Implementer Agent" } = args;
+      const rawTaskId = String(args.task_id || "");
+      const safeTaskId = path.basename(rawTaskId).replace(/\.md$/, "");
+      const safeAgent = String(args.agent_name || "Implementer Agent").replace(/[^a-zA-Z0-9_\-\. ]/g, "").slice(0, 50) || "Implementer Agent";
+
       const candidates = [
-        path.join(COMMIT_TASKS_DIR, task_id.endsWith(".md") ? task_id : `${task_id}.md`),
-        path.join(DOCS_TASKS_DIR, task_id.endsWith(".md") ? task_id : `${task_id}.md`),
+        path.join(COMMIT_TASKS_DIR, `${safeTaskId}.md`),
+        path.join(DOCS_TASKS_DIR, `${safeTaskId}.md`),
       ];
 
       let foundPath = "";
@@ -424,7 +440,7 @@ ${criteriaLines}
 
       if (!foundPath) {
         return {
-          content: [{ type: "text", text: `❌ Task '${task_id}' not found to claim.` }],
+          content: [{ type: "text", text: `❌ Task '${safeTaskId}' not found to claim.` }],
         };
       }
 
@@ -436,18 +452,18 @@ ${criteriaLines}
       } else {
         content += `\nSTATUS: in_progress\n`;
       }
-      content += `CLAIMED_BY: ${agent_name}\nCLAIMED_AT: ${timestamp}\n`;
+      content += `CLAIMED_BY: ${safeAgent}\nCLAIMED_AT: ${timestamp}\n`;
 
       fs.writeFileSync(foundPath, content, "utf8");
 
       // --- B-3: Push claim status immediately so Analyzer can see it ---
       const relPath = foundPath.replace(REPO + "/", "");
-      const pushResult = safeExec(
-        `git add "${relPath}" && git commit -m "chore(pipeline): claim ${task_id} by ${agent_name}" && git push -q origin HEAD`
+      const pushResult = safeExecResult(
+        `git add "${relPath}" && git commit -m "chore(pipeline): claim ${safeTaskId} by ${safeAgent}" && git push -q origin HEAD`
       );
-      const pushed = !pushResult.includes("error") && !pushResult.includes("Error");
+      const pushed = pushResult.ok;
 
-      const targetBranch = `ai/fix-${task_id.replace(/^TASK_/, "").toLowerCase()}`;
+      const targetBranch = `ai/fix-${safeTaskId.replace(/^TASK_/, "").toLowerCase()}`;
       return {
         content: [
           {
@@ -474,18 +490,24 @@ ${criteriaLines}
 
       if (token) {
         try {
-          const res = execSync(
-            `curl -s -H "Authorization: Bearer ${token}" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/Muath-Yousef/Root_Planner/pulls?state=open"`,
-            { encoding: "utf8" }
-          );
-          const prs = JSON.parse(res);
-          if (Array.isArray(prs) && prs.length > 0) {
-            prOutput = prs
-              .map(
-                (p) =>
-                  `- **PR #${p.number}**: [${p.title}](${p.html_url}) (Branch: \`${p.head.ref}\` by ${p.user.login})`
-              )
-              .join("\n");
+          const resp = await fetch("https://api.github.com/repos/Muath-Yousef/Root_Planner/pulls?state=open", {
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "Root-Planner-Pipeline-MCP"
+            },
+            signal: AbortSignal.timeout(6000)
+          });
+          if (resp.ok) {
+            const prs = await resp.json();
+            if (Array.isArray(prs) && prs.length > 0) {
+              prOutput = prs
+                .map(
+                  (p) =>
+                    `- **PR #${p.number}**: [${p.title}](${p.html_url}) (Branch: \`${p.head.ref}\` by ${p.user.login})`
+                )
+                .join("\n");
+            }
           }
         } catch {}
       }
@@ -523,7 +545,8 @@ ${criteriaLines}
     case "submit_review_note": {
       const { pr_or_branch, verdict, notes, suggested_fixes = "" } = args;
       const now = new Date();
-      const filename = `REVIEW_${pr_or_branch}_${now.toISOString().replace(/[-:T.]/g, "").slice(0, 14)}.md`;
+      const safeTarget = String(pr_or_branch || "pr").replace(/[^a-zA-Z0-9_\-]/g, "_").slice(0, 50);
+      const filename = `REVIEW_${safeTarget}_${now.toISOString().replace(/[-:T.]/g, "").slice(0, 14)}.md`;
       const targetPath = path.join(COMMIT_REVIEWS_DIR, filename);
 
       const reviewContent = `# Code Review: ${pr_or_branch}

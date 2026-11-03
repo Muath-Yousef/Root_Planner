@@ -192,16 +192,32 @@ route() {
 blocked() {
   local rel="$1" base
   base="$(basename "$rel")"
-  [[ "$rel" == /* || "$rel" == *..* || "$rel" == node_modules/* || "$rel" == .git/* ]] && return 0
+  [[ "$rel" == /* || "$rel" == *..* ]] && return 0
+  [[ "$rel" =~ (^|/)(\.git|node_modules)(/|$) ]] && return 0
   case "$base" in
-    .env|.env.*|*.pem|*.key|*.p12|*.pfx|id_rsa*|id_ed25519*|credentials.json) return 0 ;;
+    .env|.env.*|*.pem|*.key|*.p12|*.pfx|id_rsa*|id_ed25519*|credentials.json|*.secret|*.token) return 0 ;;
   esac
   return 1
 }
 
+file_too_large() {
+  local f="$1"
+  local max_bytes=10485760 # 10MB
+  local size
+  size=$(wc -c < "$f" 2>/dev/null || echo 0)
+  (( size > max_bytes ))
+}
+
 leaks_secret() {
   (( SCAN )) || return 1
-  grep -IEq 'ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN ([A-Z]+ )?PRIVATE KEY-----' "$1" 2>/dev/null
+  grep -IEq 'ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN ([A-Z]+ )?PRIVATE KEY-----' "$1" 2>/dev/null && return 0
+  grep -IEq 'AIza[0-9A-Za-z_-]{35}|sk-ant-[a-zA-Z0-9_\-]{20,}|sk-[a-zA-Z0-9]{32,}' "$1" 2>/dev/null && return 0
+  return 1
+}
+
+cleanup_lock() {
+  flock -u 9 2>/dev/null || true
+  exec 9>&- 2>/dev/null || true
 }
 
 rollback() {
@@ -243,6 +259,10 @@ process_once() {
     fi
     if leaks_secret "$f"; then
       echo "  ⚠️ SKIP (secret detected): $rel" >&2
+      continue
+    fi
+    if file_too_large "$f"; then
+      echo "  ⚠️ SKIP (file exceeds 10MB size limit): $rel" >&2
       continue
     fi
     dest="$(route "$rel")"
@@ -291,7 +311,12 @@ process_once() {
   fi
 
   echo "🔄 Pulling latest changes from $REMOTE/$current_branch..."
-  git pull --rebase --autostash -q "$REMOTE" "$current_branch" 2>/dev/null || true
+  if ! git pull --rebase --autostash -q "$REMOTE" "$current_branch" 2>/dev/null; then
+    if [[ -d .git/rebase-merge || -d .git/rebase-apply ]]; then
+      echo "⚠️ Git rebase conflict detected; aborting rebase to protect working tree." >&2
+      git rebase --abort 2>/dev/null || true
+    fi
+  fi
 
   # Copy files to destination
   local i
@@ -311,6 +336,7 @@ process_once() {
         git reset -q -- "${dests[@]}"
         rollback "${dests[@]}"
         echo "❌ CHECK FAILED: Typecheck or tests failed. Files remain in inbox for correction." >&2
+        cleanup_lock
         return 1
       fi
       echo "✅ Pre-push checks passed."
@@ -371,7 +397,7 @@ FAILEOF
       done
       echo "❌ PUSH FAILED after 3 attempts. Report: $fail_dir/PUSH_FAILURE.txt" >&2
       echo "   Files kept in inbox for next retry." >&2
-      flock -u 9 2>/dev/null || true
+      cleanup_lock
       return 1
     fi
   fi
@@ -387,7 +413,7 @@ FAILEOF
   find "$INBOX" -mindepth 1 -type d ! -path "$DONE*" ! -path "$INBOX/tasks*" ! -path "$INBOX/inbox*" ! -path "$INBOX/reviews*" -empty -delete 2>/dev/null || true
   mkdir -p "$INBOX/tasks" "$INBOX/inbox" "$INBOX/reviews" 2>/dev/null || true
   echo "📁 Files archived to commit/.done/success/$stamp/"
-  flock -u 9 2>/dev/null || true
+  cleanup_lock
 }
 
 watch_loop() {
