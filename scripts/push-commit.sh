@@ -150,6 +150,7 @@ route() {
     *.md)                                echo "docs/$base" ;;
     *.sh)                                echo "scripts/$base" ;;
     *.ts|*.tsx|*.css)                    echo "src/$base" ;;
+    *.patch|*.diff|*.zip|*.tar|*.tar.gz|*.tar.bz2|*.7z|*.rar) echo "SKIP" ;;
     *)                                   echo "docs/inbox/$base" ;;
   esac
 }
@@ -212,6 +213,10 @@ process_once() {
       continue
     fi
     dest="$(route "$rel")"
+    if [[ "$dest" == "SKIP" ]]; then
+      echo "  ⏭️  SKIP (unsupported type, left in commit/): $rel" >&2
+      continue
+    fi
     echo "  ➡️  $rel  ->  $dest"
     rels+=("$rel")
     dests+=("$dest")
