@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai-org/employee-manifest/v1.0",
+  "title": "AI Employee Manifest",
+  "type": "object",
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "const": "apps/v1"
+    },
+    "kind": {
+      "type": "string",
+      "const": "EmployeeManifest"
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "employee_id",
+        "version",
+        "department",
+        "manager_id",
+        "contract_ref",
+        "created_at",
+        "lifecycle_state"
+      ],
+      "properties": {
+        "employee_id": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        },
+        "department": {
+          "type": "string"
+        },
+        "manager_id": {
+          "type": "string"
+        },
+        "contract_ref": {
+          "type": "string"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "lifecycle_state": {
+          "type": "string",
+          "enum": [
+            "CREATED",
+            "CONFIGURED",
+            "EVALUATED",
+            "SHADOW",
+            "ASSISTED",
+            "LIMITED_AUTONOMOUS",
+            "AUTONOMOUS",
+            "DEPRECATED"
+          ]
+        }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": [
+        "runtime",
+        "network",
+        "environment",
+        "resources",
+        "health_check",
+        "kill_switch"
+      ],
+      "properties": {
+        "runtime": {
+          "type": "object",
+          "required": [
+            "image",
+            "entrypoint"
+          ],
+          "properties": {
+            "image": {
+              "type": "string"
+            },
+            "entrypoint": {
+              "type": "string"
+            }
+          }
+        },
+        "network": {
+          "type": "object",
+          "required": [
+            "mode"
+          ],
+          "properties": {
+            "mode": {
+              "type": "string",
+              "enum": [
+                "internal",
+                "isolated",
+                "none"
+              ]
+            },
+            "allowed_internal_hosts": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "environment": {
+          "type": "object"
+        },
+        "resources": {
+          "type": "object",
+          "required": [
+            "cpu_limit",
+            "memory_limit"
+          ],
+          "properties": {
+            "cpu_limit": {
+              "type": "string"
+            },
+            "memory_limit": {
+              "type": "string"
+            }
+          }
+        },
+        "health_check": {
+          "type": "object",
+          "required": [
+            "endpoint",
+            "interval_seconds",
+            "timeout_seconds"
+          ],
+          "properties": {
+            "endpoint": {
+              "type": "string"
+            },
+            "interval_seconds": {
+              "type": "integer"
+            },
+            "timeout_seconds": {
+              "type": "integer"
+            }
+          }
+        },
+        "kill_switch": {
+          "type": "object",
+          "required": [
+            "auto_triggers"
+          ],
+          "properties": {
+            "auto_triggers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": [
+                  "condition",
+                  "level",
+                  "action"
+                ],
+                "properties": {
+                  "condition": {
+                    "type": "string"
+                  },
+                  "level": {
+                    "type": "string",
+                    "enum": [
+                      "TASK",
+                      "EMPLOYEE",
+                      "DEPARTMENT"
+                    ]
+                  },
+                  "action": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

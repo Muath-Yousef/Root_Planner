@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai-org/escalation-package/v1.0",
+  "title": "Escalation Package Message",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_type",
+    "escalation_id",
+    "task_id",
+    "sender",
+    "receiver",
+    "timestamp_utc",
+    "reason_code",
+    "context",
+    "evidence",
+    "actions_taken",
+    "recommended_human_action",
+    "estimated_fix_cost_usd",
+    "potential_grant_value_usd",
+    "urgency"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "message_type": {
+      "type": "string",
+      "const": "escalation.package"
+    },
+    "escalation_id": {
+      "type": "string",
+      "pattern": "^esc-[a-z0-9-]+$"
+    },
+    "task_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sender": {
+      "type": "string"
+    },
+    "receiver": {
+      "type": "string"
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "reason_code": {
+      "type": "string",
+      "description": "رمز السبب المعياري المغلق للتصعيد",
+      "enum": [
+        "SCORE_AMBIGUOUS",
+        "BUDGET_EXCEEDED",
+        "POLICY_VIOLATION",
+        "SLA_BREACH",
+        "SCHEMA_INVALID"
+      ]
+    },
+    "context": {
+      "type": "object"
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "actions_taken": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recommended_human_action": {
+      "type": "string"
+    },
+    "estimated_fix_cost_usd": {
+      "type": "number",
+      "minimum": 0
+    },
+    "potential_grant_value_usd": {
+      "type": "number",
+      "minimum": 0
+    },
+    "urgency": {
+      "type": "string",
+      "enum": [
+        "LOW",
+        "MEDIUM",
+        "HIGH",
+        "CRITICAL"
+      ]
+    }
+  }
+}

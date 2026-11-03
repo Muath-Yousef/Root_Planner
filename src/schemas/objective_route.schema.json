@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai-org/objective-route/v1.0",
+  "title": "Objective Routing Message",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_type",
+    "message_id",
+    "objective_id",
+    "sender",
+    "receiver",
+    "timestamp_utc",
+    "objective",
+    "dependencies",
+    "parallel_objectives"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "message_type": {
+      "type": "string",
+      "const": "objective.route"
+    },
+    "message_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "objective_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sender": {
+      "type": "string"
+    },
+    "receiver": {
+      "type": "string"
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "objective": {
+      "type": "object",
+      "required": [
+        "description",
+        "priority",
+        "deadline_utc",
+        "success_criteria"
+      ],
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "deadline_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "success_criteria": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "معايير النجاح الكمية والموضوعية القابلة للقياس والتحقق"
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "parallel_objectives": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "الأهداف التنفيذية التي يمكن تشغيلها بالتوازي لتقليل زمن الاستجابة"
+    }
+  }
+}

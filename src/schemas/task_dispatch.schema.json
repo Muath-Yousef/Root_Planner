@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai-org/task-dispatch/v1.0",
+  "title": "Task Dispatch Message",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_type",
+    "message_id",
+    "task_id",
+    "sender",
+    "receiver",
+    "timestamp_utc",
+    "objective",
+    "constraints",
+    "inputs",
+    "expected_outputs",
+    "escalation_path"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "message_type": {
+      "type": "string",
+      "const": "task.dispatch"
+    },
+    "message_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "task_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sender": {
+      "type": "string"
+    },
+    "receiver": {
+      "type": "string"
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "objective": {
+      "type": "string"
+    },
+    "constraints": {
+      "type": "object",
+      "required": [
+        "deadline_utc",
+        "cost_budget_usd",
+        "autonomy_level"
+      ],
+      "properties": {
+        "deadline_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "cost_budget_usd": {
+          "type": "number",
+          "minimum": 0
+        },
+        "autonomy_level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      }
+    },
+    "inputs": {
+      "type": "object"
+    },
+    "expected_outputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "escalation_path": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "level",
+          "target_id"
+        ],
+        "properties": {
+          "level": {
+            "type": "integer"
+          },
+          "target_id": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

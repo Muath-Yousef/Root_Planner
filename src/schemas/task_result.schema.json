@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai-org/task-result/v1.0",
+  "title": "Task Result Message",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "message_type",
+    "message_id",
+    "task_id",
+    "sender",
+    "receiver",
+    "timestamp_utc",
+    "status",
+    "outputs",
+    "evidence",
+    "audit_ref"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "message_type": {
+      "type": "string",
+      "const": "task.result"
+    },
+    "message_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "task_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sender": {
+      "type": "string"
+    },
+    "receiver": {
+      "type": "string"
+    },
+    "timestamp_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "failed",
+        "escalated"
+      ]
+    },
+    "outputs": {
+      "type": "object"
+    },
+    "evidence": {
+      "type": "array",
+      "description": "قائمة الأدلة الموضوعية المستخلصة التي بنى عليها الموظف قراره",
+      "items": {
+        "type": "object",
+        "required": [
+          "source_url",
+          "extracted_text",
+          "relevance_score"
+        ],
+        "properties": {
+          "source_url": {
+            "type": "string"
+          },
+          "extracted_text": {
+            "type": "string"
+          },
+          "relevance_score": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        }
+      }
+    },
+    "audit_ref": {
+      "type": "string",
+      "pattern": "^audit://[a-f0-9-]+$",
+      "description": "معرف مرجعي دائم يربط النتيجة بسلسلة سجل التدقيق SHA-256"
+    }
+  }
+}

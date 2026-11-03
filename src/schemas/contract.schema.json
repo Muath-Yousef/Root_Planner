@@ -1,0 +1,179 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ai-org/employee-contract/v1.0",
+  "title": "AI Employee Contract",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "employee_id",
+    "name",
+    "role",
+    "version",
+    "department",
+    "manager_id",
+    "mission",
+    "scope",
+    "exclusions",
+    "authority",
+    "tools",
+    "skills",
+    "policies",
+    "memory_config",
+    "runtime_config",
+    "escalation_path",
+    "identity_prompt"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0"
+    },
+    "employee_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_]+\\.[a-z0-9_]+\\.v[0-9]+$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "role": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "department": {
+      "type": "string"
+    },
+    "manager_id": {
+      "type": "string"
+    },
+    "mission": {
+      "type": "string"
+    },
+    "scope": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "exclusions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "authority": {
+      "type": "object",
+      "required": [
+        "autonomy_level"
+      ],
+      "properties": {
+        "autonomy_level": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 5
+        }
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "tool_id",
+          "description",
+          "is_idempotent"
+        ],
+        "properties": {
+          "tool_id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "is_idempotent": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "policies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "memory_config": {
+      "type": "object",
+      "required": [
+        "type",
+        "working_memory_max_tokens"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "ephemeral",
+            "persistent"
+          ]
+        },
+        "working_memory_max_tokens": {
+          "type": "integer"
+        }
+      }
+    },
+    "runtime_config": {
+      "type": "object",
+      "required": [
+        "docker_network",
+        "max_concurrent_tasks",
+        "task_timeout_seconds"
+      ],
+      "properties": {
+        "docker_network": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "isolated",
+            "none"
+          ]
+        },
+        "max_concurrent_tasks": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "task_timeout_seconds": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "escalation_path": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "level",
+          "target_id"
+        ],
+        "properties": {
+          "level": {
+            "type": "integer"
+          },
+          "target_id": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "identity_prompt": {
+      "type": "string"
+    }
+  }
+}
