@@ -223,6 +223,13 @@ process_once() {
     return 0
   fi
 
+  # Acquire exclusive lock for committing and pushing
+  exec 9>"$REPO/.git/push-commit.lock"
+  if ! flock -n 9; then
+    echo "Another commit task is currently running; skipping this run."
+    return 0
+  fi
+
   # Branch handling
   local current_branch
   current_branch="$(git rev-parse --abbrev-ref HEAD)"
@@ -279,15 +286,8 @@ process_once() {
   done
   find "$INBOX" -mindepth 1 -type d ! -path "$DONE*" -empty -delete 2>/dev/null || true
   echo "📁 Files archived to commit/.done/$stamp/"
+  flock -u 9 2>/dev/null || true
 }
-
-# Concurrency lock
-mkdir -p "$REPO/.git" 2>/dev/null || true
-exec 9>"$REPO/.git/push-commit.lock"
-if ! flock -n 9; then
-  echo "Another push-commit instance is currently running."
-  exit 0
-fi
 
 watch_loop() {
   echo "👀 Watching $INBOX for files (PID: $$)..."
@@ -328,7 +328,18 @@ except Exception:
   done
 }
 
+if (( DRY )); then
+  process_once
+  exit 0
+fi
+
 if (( WATCH )); then
+  mkdir -p "$REPO/.git" 2>/dev/null || true
+  exec 8>"$REPO/.git/push-commit-watcher.lock"
+  if ! flock -n 8; then
+    echo "Another watcher instance is already running."
+    exit 0
+  fi
   watch_loop
 else
   process_once
