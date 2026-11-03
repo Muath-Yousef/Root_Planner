@@ -19,6 +19,15 @@
 #   --no-scan       Skip sensitive credentials scan
 set -euo pipefail
 
+# Ensure Node.js, NVM, and user binaries are in PATH
+if [[ -d "$HOME/.nvm/versions/node" ]]; then
+  LATEST_NODE="$(ls -1 "$HOME/.nvm/versions/node" 2>/dev/null | tail -1)"
+  if [[ -n "$LATEST_NODE" && -d "$HOME/.nvm/versions/node/$LATEST_NODE/bin" ]]; then
+    export PATH="$HOME/.nvm/versions/node/$LATEST_NODE/bin:$PATH"
+  fi
+fi
+export PATH="$HOME/.local/bin:$HOME/bin:/usr/local/bin:$PATH"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_DEFAULT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || echo "/home/kyrie/work/Root_Planner/Root_Planner")"
 REPO="${REPO:-$REPO_DEFAULT}"
@@ -110,6 +119,7 @@ After=network.target
 
 [Service]
 Type=simple
+Environment=PATH=$PATH
 ExecStart=$SCRIPT_DIR/push-commit.sh --watch
 WorkingDirectory=$REPO
 Restart=always
