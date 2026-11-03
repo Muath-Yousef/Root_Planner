@@ -65,3 +65,5 @@ npm run dev
   - Screen Readers: Localized `aria-label` attributes on 100% of icon-only action buttons in Arabic and English.
 - **High-Performance Canvas**: Tested with 300 concurrent nodes; selective Zustand subscriptions and `React.memo` guarantee that moving one node never triggers re-rendering of the remaining 299 nodes.
 - **Full Bilingual & Logical CSS**: Seamless English / Arabic support with RTL mirroring, logical layout properties (`ms-*`, `me-*`, `ps-*`, `pe-*`), and preserved LTR direction on technical identifiers.
+
+**END_OF_THIS_FILE**
