@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { ReactFlowProvider } from '@xyflow/react';
 import { useStudio } from '../../store/useStudioStore';
 import { TopologyCanvas } from '../canvas/TopologyCanvas';
@@ -11,22 +11,43 @@ import { Toasts } from './Toasts';
 import { useAutosave } from './useAutosave';
 import { useShortcuts } from './useShortcuts';
 import { ErrorBoundary } from './ErrorBoundary';
-import { DeviceInspectorDrawer } from '../inspector/DeviceInspectorDrawer';
-import { EmployeeFactoryModal } from '../modals/EmployeeFactoryModal';
-import { SocrootAdminCliModal } from '../modals/SocrootAdminCliModal';
-import { BreakGlassModal } from '../modals/BreakGlassModal';
-import { CompanyTenantModal } from '../modals/CompanyTenantModal';
-import { KillPlaneModal } from '../modals/KillPlaneModal';
-import { ExportBundleModal } from '../modals/ExportBundleModal';
-import { CommandPaletteModal } from '../modals/CommandPaletteModal';
-import { ComponentInfoModal } from '../modals/ComponentInfoModal';
-import { CableDetailModal } from '../modals/CableDetailModal';
-import { ConfigEditorModal } from '../modals/ConfigEditorModal';
 import { ConfirmDialog } from '../common/ConfirmDialog';
-import { GuidedTour } from '../guidance/GuidedTour';
-import { HelpSheet } from '../guidance/HelpSheet';
 import { useT } from '../../i18n/useT';
 import { get } from 'idb-keyval';
+
+function createLazy<P extends object>(
+  loader: () => Promise<Record<string, React.ComponentType<P>>>,
+  exportName: string
+): React.ComponentType<P> {
+  let loadedComponent: React.ComponentType<P> | null = null;
+  const promise = loader().then((m) => {
+    loadedComponent = m[exportName];
+    return { default: m[exportName] };
+  });
+  const LazyComp = lazy(() => promise);
+
+  return function LazyWrapper(props: P) {
+    if (loadedComponent) {
+      const Comp = loadedComponent;
+      return <Comp {...props} />;
+    }
+    return <LazyComp {...props} />;
+  };
+}
+
+const DeviceInspectorDrawer = createLazy(() => import('../inspector/DeviceInspectorDrawer'), 'DeviceInspectorDrawer');
+const EmployeeFactoryModal = createLazy(() => import('../modals/EmployeeFactoryModal'), 'EmployeeFactoryModal');
+const SocrootAdminCliModal = createLazy(() => import('../modals/SocrootAdminCliModal'), 'SocrootAdminCliModal');
+const BreakGlassModal = createLazy(() => import('../modals/BreakGlassModal'), 'BreakGlassModal');
+const CompanyTenantModal = createLazy(() => import('../modals/CompanyTenantModal'), 'CompanyTenantModal');
+const KillPlaneModal = createLazy(() => import('../modals/KillPlaneModal'), 'KillPlaneModal');
+const ExportBundleModal = createLazy(() => import('../modals/ExportBundleModal'), 'ExportBundleModal');
+const CommandPaletteModal = createLazy(() => import('../modals/CommandPaletteModal'), 'CommandPaletteModal');
+const ComponentInfoModal = createLazy(() => import('../modals/ComponentInfoModal'), 'ComponentInfoModal');
+const CableDetailModal = createLazy(() => import('../modals/CableDetailModal'), 'CableDetailModal');
+const ConfigEditorModal = createLazy(() => import('../modals/ConfigEditorModal'), 'ConfigEditorModal');
+const GuidedTour = createLazy(() => import('../guidance/GuidedTour'), 'GuidedTour');
+const HelpSheet = createLazy(() => import('../guidance/HelpSheet'), 'HelpSheet');
 
 /** The working screen: top bar, canvas, side panel (dockable tabs for Problems and Simulation), dock, status bar. */
 export function StudioLayout({ onHome }: { onHome: () => void }) {
@@ -35,7 +56,20 @@ export function StudioLayout({ onHome }: { onHome: () => void }) {
   const setActiveDockTab = useStudio((s) => s.setActiveDockTab);
   const confirmModal = useStudio((s) => s.confirmModal);
   const closeConfirm = useStudio((s) => s.closeConfirm);
+  const tourOpen = useStudio((s) => s.tourOpen);
   const setTourOpen = useStudio((s) => s.setTourOpen);
+  const helpSheetOpen = useStudio((s) => s.helpSheetOpen);
+  const inspector = useStudio((s) => s.inspector);
+  const factoryModal = useStudio((s) => s.factoryModal);
+  const cliModalOpen = useStudio((s) => s.cliModalOpen);
+  const breakGlassModalOpen = useStudio((s) => s.breakGlassModalOpen);
+  const tenantModalOpen = useStudio((s) => s.tenantModalOpen);
+  const killModalOpen = useStudio((s) => s.killModalOpen);
+  const exportModalOpen = useStudio((s) => s.exportModalOpen);
+  const commandPaletteOpen = useStudio((s) => s.commandPaletteOpen);
+  const infoModalRoleId = useStudio((s) => s.infoModalRoleId);
+  const selectedCableEdgeId = useStudio((s) => s.selectedCableEdgeId);
+  const configEditorModalOpen = useStudio((s) => s.configEditorModalOpen);
   const saved = useAutosave();
   const tr = useT();
 
@@ -188,22 +222,22 @@ export function StudioLayout({ onHome }: { onHome: () => void }) {
           />
         )}
 
-        {/* Guidance: Tour & Help Sheet */}
-        <GuidedTour />
-        <HelpSheet />
-
-        {/* Dynamic Modals & Drawers */}
-        <DeviceInspectorDrawer />
-        <EmployeeFactoryModal />
-        <SocrootAdminCliModal />
-        <BreakGlassModal />
-        <CompanyTenantModal />
-        <KillPlaneModal />
-        <ExportBundleModal />
-        <CommandPaletteModal />
-        <ComponentInfoModal />
-        <CableDetailModal />
-        <ConfigEditorModal />
+        {/* Guidance & Modals (Lazy Loaded) */}
+        <Suspense fallback={null}>
+          {tourOpen && <GuidedTour />}
+          {helpSheetOpen && <HelpSheet />}
+          {inspector && <DeviceInspectorDrawer />}
+          {factoryModal && <EmployeeFactoryModal />}
+          {cliModalOpen && <SocrootAdminCliModal />}
+          {breakGlassModalOpen && <BreakGlassModal />}
+          {tenantModalOpen && <CompanyTenantModal />}
+          {killModalOpen && <KillPlaneModal />}
+          {exportModalOpen && <ExportBundleModal />}
+          {commandPaletteOpen && <CommandPaletteModal />}
+          {infoModalRoleId && <ComponentInfoModal />}
+          {selectedCableEdgeId && <CableDetailModal />}
+          {configEditorModalOpen && <ConfigEditorModal />}
+        </Suspense>
       </div>
     </ReactFlowProvider>
   );

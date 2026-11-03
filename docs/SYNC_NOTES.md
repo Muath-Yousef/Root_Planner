@@ -210,4 +210,28 @@ Tests: `tests/engines2.test.ts` covers break-glass, the CLI and layout. Not yet 
 6. **Documentation & Testing:**
    - Created `docs/UX_TASKS.md` defining 6 real-world tasks and pass criteria for non-programmers.
    - Created `tests/uxErgonomics.test.tsx` testing toasts, confirmation dialogs, tour persistence, shortcuts parity, and simulation controls.
-   - Total test suite: 175 tests across 19 test files passing 100%.
+
+# Batch 9 (UX Pass Completion & Code Splitting)
+
+1. **Lazy Loading & Bundle Optimization:**
+   - Converted `GuidedTour`, `HelpSheet`, `DeviceInspectorDrawer`, and heavy modals (`SocrootAdminCliModal`, `BreakGlassModal`, `ExportBundleModal`, `ConfigEditorModal`, `EmployeeFactoryModal`, `CommandPaletteModal`, `CompanyTenantModal`, `KillPlaneModal`, `ComponentInfoModal`, `CableDetailModal`) to `React.lazy` wrapped in `Suspense` inside `StudioLayout.tsx`.
+   - Main JS bundle chunk size reduced from ~444 kB down to **~133.7 kB** (well below the ≤ 400 kB requirement).
+
+2. **Focus & Non-color Visual Cues:**
+   - Added global `focus-visible` ring utility (`focus-ring` / `outline: 2px solid #0284c7`) across all interactive controls, buttons, inputs, and menu items.
+   - Assigned distinct `dashArray` stroke patterns (`Solid`, `Dash 8 4`, `Dash-Dot 12 4 2 4`, `Dot 3 3`, `Dash-Double-Dot`, `Fine Dot 1 4`) to every cable kind in `src/registry/cables.ts`.
+   - Rendered exact SVG stroke dash patterns and pattern names in the `HelpSheet.tsx` cable legend.
+   - Verified WCAG AA contrast (5.4:1 ratio for slate-400 text on slate-900 backgrounds).
+
+3. **Canvas Edge Hover Labels & Floating Selection Toolbar:**
+   - Added hover detection path to `ProtocolEdge.tsx` so edge labels appear on hover, on selection, or when zoom > 0.65.
+   - Created `SelectionToolbar.tsx` rendering alignment tools at 2+ selected nodes, distribute tools at 3+ selected nodes, duplicate, and delete actions.
+   - Cleaned up duplicate alignment controls from `TopControlBar.tsx`.
+
+4. **Inspector Unsaved Edit Indicators & Reset to Default:**
+   - Implemented "Unsaved edits" amber status badges in `ContractTab`, `ManifestTab`, `CodeTab`, and `ConfigEditorModal`.
+   - Added "Reset to default" buttons to instantly restore default schemas or configurations.
+
+5. **Ergonomic Unit Test Suite:**
+   - Added 6 integration unit tests in `tests/uxErgonomics.test.tsx` testing: real Undo recovery in toasts, `TopControlBar` "More" cluster overflow, snap-to-grid persistence, `StartScreen` project deletion safety, edge label zoom/hover visibility, and selection toolbar node count rules.
+   - Total test suite: 181 tests across 19 test files passing 100%.

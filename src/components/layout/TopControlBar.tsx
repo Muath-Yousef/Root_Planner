@@ -98,14 +98,6 @@ export function TopControlBar({ onHome }: { onHome: () => void }) {
             <span>📐</span>
             {!isMedium && <span>{tr('top.autolayout')}</span>}
           </button>
-          <button onClick={() => alignSelected('hcenter')} className={btn} title={tr('top.title.align')} aria-label={tr('top.align')}>
-            <span>↔</span>
-            {!isMedium && <span>{tr('top.align')}</span>}
-          </button>
-          <button onClick={() => distributeSelected('x')} className={btn} title={tr('top.title.distribute')} aria-label={tr('top.distribute')}>
-            <span>📊</span>
-            {!isMedium && <span>{tr('top.distribute')}</span>}
-          </button>
         </div>
       )}
 

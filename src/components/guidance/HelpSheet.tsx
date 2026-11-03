@@ -115,19 +115,21 @@ export function HelpSheet() {
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span
-                        className="h-3 w-8 rounded transition-all"
-                        style={{
-                          backgroundColor: c.color,
-                          borderStyle: c.dashed ? 'dashed' : 'solid',
-                        }}
-                      />
+                      <svg className="h-3 w-10 shrink-0 overflow-visible" viewBox="0 0 40 12">
+                        <line
+                          x1="0"
+                          y1="6"
+                          x2="40"
+                          y2="6"
+                          stroke={c.color}
+                          strokeWidth="3"
+                          strokeDasharray={c.dashArray}
+                        />
+                      </svg>
                       <b className="text-xs text-slate-100">{c.label[lang] ?? c.kind}</b>
-                      {c.dashed && (
-                        <span className="rounded bg-slate-800 px-1.5 py-0.2 text-[10px] text-slate-400 font-mono">
-                          Dashed
-                        </span>
-                      )}
+                      <span className="rounded bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300 font-mono">
+                        {c.patternName ?? (c.dashed ? 'Dashed' : 'Solid')}
+                      </span>
                     </div>
                     <span className="font-mono text-[10px] text-slate-500">{c.kind}</span>
                   </div>

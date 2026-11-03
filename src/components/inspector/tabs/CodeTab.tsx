@@ -101,16 +101,33 @@ export function CodeTab({ node }: CodeTabProps) {
             />
           </Suspense>
 
-          <div className="flex justify-between items-center">
-            <span className="text-[11px] text-slate-400">
-              SEC-001: Secrets must use vault://. Any plaintext token is rejected.
-            </span>
-            <button
-              onClick={handleSaveCustom}
-              className="rounded bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-500"
-            >
-              {tr('inspector.save')}
-            </button>
+          <div className="flex justify-between items-center gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400">
+                SEC-001: Secrets must use vault://. Any plaintext token is rejected.
+              </span>
+              {customCode !== (emp.custom_code ?? '') && (
+                <span className="flex items-center gap-1 rounded bg-amber-950/80 border border-amber-700/60 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  {tr('inspector.unsaved')}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCustomCode(emp.custom_code ?? '')}
+                disabled={customCode === (emp.custom_code ?? '')}
+                className="rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-40 transition-colors"
+              >
+                {tr('inspector.reset_default')}
+              </button>
+              <button
+                onClick={handleSaveCustom}
+                className="rounded bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-500 transition-colors"
+              >
+                {tr('inspector.save')}
+              </button>
+            </div>
           </div>
         </div>
       )}

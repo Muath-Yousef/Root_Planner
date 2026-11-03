@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { load } from 'js-yaml';
 import { useStudio } from '../../store/useStudioStore';
+import { defaultConfigs } from '../../presets/defaultConfigs';
 import { useT } from '../../i18n/useT';
 import { useModalA11y } from '../layout/useModalA11y';
 
@@ -146,10 +147,22 @@ export function ConfigEditorModal() {
 
         {/* Footer */}
         <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950 px-5 py-3">
-          <div className="text-[11px] text-slate-500 font-mono">
-            Ajv & YAML Lint Validated
+          <div className="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
+            <span>Ajv & YAML Lint Validated</span>
+            {content !== (configs[activeFile] ?? '') && (
+              <span className="flex items-center gap-1 rounded bg-amber-950/80 border border-amber-700/60 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                {tr('inspector.unsaved')}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setContent(defaultConfigs()[activeFile] ?? '')}
+              className="rounded border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700 transition-colors"
+            >
+              {tr('inspector.reset_default')}
+            </button>
             <button
               onClick={close}
               className="rounded border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700"

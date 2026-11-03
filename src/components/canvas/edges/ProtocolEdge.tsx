@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, useStore, type EdgeProps } from '@xyflow/react';
 import { CABLE_DEFS } from '../../../registry';
 import { useStudio } from '../../../store/useStudioStore';
@@ -5,6 +6,7 @@ import type { SEdge } from '../../../types';
 
 export function ProtocolEdge(p: EdgeProps<SEdge>) {
   const [path, labelX, labelY] = getBezierPath(p);
+  const [isHovered, setIsHovered] = useState(false);
   const def = CABLE_DEFS[p.data!.kind];
   const lang = useStudio((s) => s.lang);
   const openCableModal = useStudio((s) => s.openCableModal);
@@ -13,7 +15,8 @@ export function ProtocolEdge(p: EdgeProps<SEdge>) {
   const dimUnrelated = useStudio((s) => s.dimUnrelated);
   const selectedNodeId = useStudio((s) => s.selected);
 
-  const zoom = useStore((s) => s.transform[2]);
+  const zoomRaw = useStore((s) => s.transform?.[2]);
+  const zoom = zoomRaw && zoomRaw > 0 ? zoomRaw : 1;
   const isPulsing = activePulsingCableId === p.id && !reducedMotion;
 
   // Dimming unrelated edges if dimUnrelated is enabled and a node is selected
@@ -25,17 +28,32 @@ export function ProtocolEdge(p: EdgeProps<SEdge>) {
   const isDimmed = dimUnrelated && selectedNodeId && !isRelated;
 
   // Show edge labels on hover, or if selected, or if zoom > 0.65
-  const showLabel = p.selected || zoom > 0.65 || isPulsing;
+  const showLabel = isHovered || p.selected || zoom > 0.65 || isPulsing;
 
   return (
     <>
+      {/* Invisible wider interaction path for hover */}
+      <path
+        d={path}
+        fill="none"
+        stroke="transparent"
+        strokeWidth={16}
+        className="cursor-pointer"
+        style={{ pointerEvents: 'stroke' }}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onClick={(e) => {
+          e.stopPropagation();
+          openCableModal(p.id);
+        }}
+      />
       <BaseEdge
         id={p.id}
         path={path}
         style={{
           stroke: def.color,
           strokeWidth: isPulsing ? 3.5 : 2,
-          strokeDasharray: def.dashed ? '6 4' : undefined,
+          strokeDasharray: def.dashArray ?? (def.dashed ? '6 4' : undefined),
           filter: isPulsing ? `drop-shadow(0 0 8px ${def.color})` : undefined,
           transition: reducedMotion ? 'none' : 'all 0.3s ease',
           opacity: isDimmed ? 0.2 : 1,

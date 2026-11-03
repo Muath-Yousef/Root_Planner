@@ -7,6 +7,7 @@ import { useProblems } from '../../store/useProblems';
 import { translateEngineMessage } from '../../i18n/messages';
 import { edgeTypes, nodeTypes } from './nodeTypes';
 import { ContextMenu } from './ContextMenu';
+import { SelectionToolbar } from './SelectionToolbar';
 import { START_TEMPLATES, createProject } from '../../presets/startTemplates';
 import type { SNode } from '../../types';
 
@@ -201,77 +202,8 @@ export function TopologyCanvas() {
         </div>
       )}
 
-      {/* Floating Toolbar: Alignment & Distribute tools when nodes selected */}
-      {selectedNodes.length >= 2 && (
-        <div className="absolute bottom-6 start-1/2 z-20 flex -translate-x-1/2 items-center gap-1.5 rounded-xl border border-sky-500/50 bg-slate-900/95 p-2 shadow-2xl backdrop-blur-md text-xs">
-          <span className="font-mono text-[11px] font-bold text-sky-400 px-2 border-e border-slate-700">
-            {selectedNodes.length} {tr('start.title')}
-          </span>
-          <button
-            onClick={() => alignSelected('left')}
-            className="rounded bg-slate-800 px-2 py-1 text-slate-200 hover:bg-slate-700"
-            title={tr('canvas.align.left')}
-          >
-            ├
-          </button>
-          <button
-            onClick={() => alignSelected('hcenter')}
-            className="rounded bg-slate-800 px-2 py-1 text-slate-200 hover:bg-slate-700"
-            title={tr('canvas.align.center')}
-          >
-            ┼
-          </button>
-          <button
-            onClick={() => alignSelected('right')}
-            className="rounded bg-slate-800 px-2 py-1 text-slate-200 hover:bg-slate-700"
-            title={tr('canvas.align.right')}
-          >
-            ┤
-          </button>
-          <button
-            onClick={() => alignSelected('top')}
-            className="rounded bg-slate-800 px-2 py-1 text-slate-200 hover:bg-slate-700"
-            title={tr('canvas.align.top')}
-          >
-            ┬
-          </button>
-          <button
-            onClick={() => alignSelected('vcenter')}
-            className="rounded bg-slate-800 px-2 py-1 text-slate-200 hover:bg-slate-700"
-            title={tr('canvas.align.middle')}
-          >
-            ┼
-          </button>
-
-          {selectedNodes.length >= 3 && (
-            <>
-              <div className="h-4 w-px bg-slate-700 mx-1" />
-              <button
-                onClick={() => distributeSelected('x')}
-                className="rounded bg-slate-800 px-2 py-1 text-slate-200 hover:bg-slate-700"
-                title={tr('canvas.distribute.x')}
-              >
-                𝌀 {tr('canvas.distribute.x')}
-              </button>
-              <button
-                onClick={() => distributeSelected('y')}
-                className="rounded bg-slate-800 px-2 py-1 text-slate-200 hover:bg-slate-700"
-                title={tr('canvas.distribute.y')}
-              >
-                𝌀 {tr('canvas.distribute.y')}
-              </button>
-            </>
-          )}
-
-          <div className="h-4 w-px bg-slate-700 mx-1" />
-          <button
-            onClick={() => fitView({ nodes: selectedNodes, duration: 500 })}
-            className="rounded bg-sky-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-sky-500"
-          >
-            ⛶ {tr('top.fit_selection')}
-          </button>
-        </div>
-      )}
+      {/* Floating Selection Toolbar for Alignment, Distribute, Copy, Delete */}
+      <SelectionToolbar />
 
       {/* MiniMap & View Canvas Toolbar */}
       <div className="absolute top-3 start-3 z-10 flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900/90 p-1 backdrop-blur-xs text-xs shadow-lg">

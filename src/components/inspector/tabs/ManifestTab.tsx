@@ -114,14 +114,33 @@ export function ManifestTab({ node, initialField, initialAdvanced = false }: Man
               highlightLine={highlightLine}
             />
           </Suspense>
-          <div className="flex justify-between items-center">
-            <span className="text-[11px] text-slate-400">Validates against manifest.schema.json (Draft 2020-12)</span>
-            <button
-              onClick={handleSaveRaw}
-              className="rounded bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-500"
-            >
-              {tr('inspector.save')}
-            </button>
+          <div className="flex justify-between items-center gap-2">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400">Validates against manifest.schema.json (Draft 2020-12)</span>
+              {rawText !== (emp.manifest ? documentText('manifest', emp.manifest) : '') && (
+                <span className="flex items-center gap-1 rounded bg-amber-950/80 border border-amber-700/60 px-2 py-0.5 text-[11px] font-medium text-amber-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  {tr('inspector.unsaved')}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  if (emp.manifest) setRawText(documentText('manifest', emp.manifest));
+                }}
+                disabled={rawText === (emp.manifest ? documentText('manifest', emp.manifest) : '')}
+                className="rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-700 disabled:opacity-40 transition-colors"
+              >
+                {tr('inspector.reset_default')}
+              </button>
+              <button
+                onClick={handleSaveRaw}
+                className="rounded bg-sky-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-sky-500 transition-colors"
+              >
+                {tr('inspector.save')}
+              </button>
+            </div>
           </div>
         </div>
       ) : (

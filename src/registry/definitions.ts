@@ -47,4 +47,4 @@ export interface RoleDefinition {
   ref?: string;                       // section of the reference
   help?: RoleHelp;
 }
-export interface CableDefinition { kind: CableKind; color: string; dashed?: boolean; label: Localized; description: Localized; links: CableLink[] }
+export interface CableDefinition { kind: CableKind; color: string; dashed?: boolean; dashArray?: string; patternName?: string; label: Localized; description: Localized; links: CableLink[] }

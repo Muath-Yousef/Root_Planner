@@ -80,3 +80,19 @@ code, pre, kbd, samp {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   direction: ltr;
 }
+
+/* Shared focus-visible ring utility for buttons, inputs, menu items */
+.focus-ring {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+}
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[role="button"]:focus-visible,
+[role="menuitem"]:focus-visible {
+  outline: 2px solid #0284c7;
+  outline-offset: 2px;
+}
