@@ -51,7 +51,7 @@ describe('DSL compiler — v3 example (Phase 1)', () => {
     expect(a).toBe(b);
   });
 
-  it('passes the studio validation as judge (0 errors, same 21 ORG-003 warnings)', () => {
+  it('passes the studio validation as judge (0 errors, same 1 brief ORG-003 warning — Phase 6)', () => {
     const project = compileV3();
     const parsed = parseProjectText(serializeProject(project));
     expect(parsed.ok).toBe(true);
@@ -63,7 +63,7 @@ describe('DSL compiler — v3 example (Phase 1)', () => {
     }
     const problems = collectProblems(project.nodes, project.edges, { tenant_id: 'socroot-core' });
     expect(errorCount(problems)).toBe(0);
-    expect(problems.filter((p) => p.severity === 'warning')).toHaveLength(21);
+    expect(problems.filter((p) => p.severity === 'warning')).toHaveLength(1);
   });
 
   it('honours the now option over the YAML created_at', () => {

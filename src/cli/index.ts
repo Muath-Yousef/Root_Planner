@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as path from 'node:path';
-import { buildFile, diffFiles, exportFile, exportImageFile, formatDiffResult, reviewFile, validateFile } from './commands';
+import { buildFile, diffFiles, exportFile, exportImageFile, formatDiffResult, reviewFile, validateFile, workloadFile } from './commands';
 import { registerRolesFile } from './roles';
 
 /**
@@ -11,13 +11,11 @@ import { registerRolesFile } from './roles';
  *   export <file> --out <file>      نسخة قانونية موثقة من مشروع سليم إلى مسار مختار
  *   roles register <file>           تسجيل دور (أدوار) من ملف RoleDefinition (المرحلة 4ب)
  *
- * Phase 5 — export-image / diff / review:
+ * Phase 6 — workload / verbose:
  *
- *   export-image <file> --out <f.svg|f.png> [--format svg|png]
- *                                 صورة الخريطة من داخل المستوديو (SVG أولاً، ثم PNG)
- *   diff <file-a> <file-b>        فرق دقيق بين نسختين: عقد وروابط أُضيفت/حُذفت/تغيّرت
- *   review <file> [--against <f>] [--out <dir>]
- *                                 قائمة مراجعة قبل النشر: تحقق + بصمة مستقرة + صورة + فرق
+ *   workload <file>                 عبء العمل: لكل مدير، المهام المسندة والمثيلات تحت إشرافه
+ *   validate <file> [--verbose]     التحذير الموجز افتراضياً (تحذير ORG-003 واحد لكل قسم
+ *                                   مخطط)؛ --verbose يعيد القائمة الكاملة لكل عقدة
  *
  * Exit code 0 on success, 1 on any failure. No browser, no UI.
  * Arabic-first messages; technical identifiers stay in English.
@@ -26,7 +24,7 @@ import { registerRolesFile } from './roles';
 const USAGE = `socroot-cli — واجهة سطر أوامر استوديو Root Planner (بلا واجهة رسومية)
 
 الاستخدام:
-  npm run cli -- validate <file>                  تحقق من ملف .socroot.json أو YAML
+  npm run cli -- validate <file> [--verbose]      تحقق من ملف .socroot.json أو YAML
   npm run cli -- build <spec.yaml> [--out <file>] [--now <iso>]
                                                   ترجمة مواصفة YAML إلى .socroot.json
   npm run cli -- export <file> --out <file>       تصدير نسخة قانونية من مشروع سليم
@@ -36,16 +34,19 @@ const USAGE = `socroot-cli — واجهة سطر أوامر استوديو Root 
   npm run cli -- diff <file-a> <file-b>           فرق دقيق بين نسختين من الخريطة
   npm run cli -- review <file> [--against <file>] [--out <dir>]
                                                   قائمة مراجعة قبل النشر
+  npm run cli -- workload <file>                  عبء العمل: لكل مدير، المهام المسندة والمثيلات تحت إشرافه
 
 الخيارات:
   --out <file>   مسار الخرج (build: افتراضياً بجانب المواصفة بالامتداد .socroot.json؛ export: مطلوب؛ export-image: مطلوب؛ review: مجلد لحفظ الـ SVG)
   --now <iso>    تثبيت الطابع الزمني للبناء (build فقط؛ بدونه يُستخدم created_at المثبّت في المواصفة، أو الوقت الحالي)
   --format <svg|png>  صيغة الصورة (export-image فقط؛ بدونه تُستنتج من امتداد --out)
   --against <file>    ملف الأساس للفرق (review فقط)
+  --verbose      القائمة الكاملة لتحذير ORG-003 لكل عقدة (validate فقط؛ بدونه تحذير موجز واحد لكل قسم مخطط)
   --help, -h     هذه الرسالة
 
 أمثلة:
   npm run cli -- validate examples/influencers_system_v3.socroot.json
+  npm run cli -- validate examples/influencers_system_v3.socroot.json --verbose
   npm run cli -- build examples/influencers_system_v3.yaml --out /tmp/v3.socroot.json
   npm run cli -- export examples/influencers_system_v3.yaml --out /tmp/v3-copy.socroot.json
   npm run cli -- roles register ./my-role.ts
@@ -53,6 +54,7 @@ const USAGE = `socroot-cli — واجهة سطر أوامر استوديو Root 
   npm run cli -- export-image examples/influencers_system_v3.socroot.json --out /tmp/v3.png
   npm run cli -- diff examples/influencers_system_v2.socroot.json examples/influencers_system_v3.socroot.json
   npm run cli -- review examples/influencers_system_v3.socroot.json --against examples/influencers_system_v2.socroot.json
+  npm run cli -- workload examples/influencers_system_v3.socroot.json
 `;
 
 function die(message: string): never {
@@ -60,7 +62,7 @@ function die(message: string): never {
   process.exit(1);
 }
 
-interface Flags { out?: string; now?: string; format?: string; against?: string; positional: string[] }
+interface Flags { out?: string; now?: string; format?: string; against?: string; verbose?: boolean; positional: string[] }
 
 function parseFlags(args: string[]): Flags {
   const flags: Flags = { positional: [] };
@@ -74,6 +76,8 @@ function parseFlags(args: string[]): Flags {
       else if (a === '--format') flags.format = v;
       else flags.against = v;
       i++;
+    } else if (a === '--verbose') {
+      flags.verbose = true;
     } else if (a.startsWith('--')) {
       die(`خيار غير معروف: ${a} — انظر --help`);
     } else {
@@ -91,6 +95,7 @@ async function main(): Promise<void> {
     return;
   }
   const flags = parseFlags(rest);
+  if (flags.verbose && cmd !== 'validate') die('الخيار --verbose يخص validate فقط — انظر --help');
   if (cmd === 'roles') {
     const [sub, ...subRest] = flags.positional;
     if (sub !== 'register') die(`أمر roles غير معروف: ${sub ?? '—'} — المتاح: roles register <file> — انظر --help`);
@@ -147,8 +152,21 @@ async function main(): Promise<void> {
   if (input === undefined) die(`أمر ${cmd} يحتاج ملفاً — انظر --help`);
   if (flags.positional.length > 1) die(`أمر ${cmd} يقبل ملفاً واحداً — أُعطي: ${flags.positional.join('، ')}`);
 
+  if (cmd === 'workload') {
+    const report = await workloadFile(input);
+    if (report.managers.length === 0) {
+      console.log(`لا مديرين يوزّعون مهام في ${input}`);
+    } else {
+      console.log(`عبء العمل — ${input}:`);
+      for (const m of report.managers) {
+        console.log(`  ${m.managerId} (${m.managerLabel}): ${m.tasks} مهمة مسندة، ${m.instances} مثيلاً تحت الإشراف`);
+      }
+    }
+    return;
+  }
+
   if (cmd === 'validate') {
-    const report = await validateFile(input);
+    const report = await validateFile(input, { verbose: flags.verbose });
     if (report.ok) {
       console.log(`✓ ${input}: 0 أخطاء، ${report.warnings.length} تحذيراً — ${report.nodes} عقدة، ${report.edges} رابطاً`);
       for (const w of report.warnings) console.log(`  تحذير — ${w}`);

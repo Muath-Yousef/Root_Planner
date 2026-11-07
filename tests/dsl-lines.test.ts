@@ -53,9 +53,11 @@ describe('portfolio preset — line counts 1..5', () => {
     expect(project.nodes).toHaveLength(BASE_NODES + NODES_PER_LINE * n);
     expect(project.edges).toHaveLength(BASE_EDGES + EDGES_PER_LINE * n);
     assertValid(project);
-    // One ORG-003 warning per node in the planned department (manager + 11 + 3N employees).
+    // Phase 6: one brief ORG-003 warning per planned department (the
+    // portfolio has one planned department, whatever the line count) —
+    // the per-node count (12 + 3N) is only visible with --verbose.
     const problems = collectProblems(project.nodes, project.edges, { tenant_id: 'socroot-core' });
-    expect(problems.filter((p) => p.severity === 'warning')).toHaveLength(12 + 3 * n);
+    expect(problems.filter((p) => p.severity === 'warning')).toHaveLength(1);
   });
 
   it.each([1, 2, 3, 4, 5])('N=%i: every employee_id is unique and every line instance is inf.<role>_<n>.v1', (n) => {

@@ -37,6 +37,22 @@ export interface ValidationReport {
   edges: number;
 }
 
+/** Phase 6 — per-manager workload: assigned tasks and supervised instances. */
+export interface WorkloadEntry {
+  managerId: string;
+  managerLabel: string;
+  /** Outgoing TASK_DISPATCH_RESULT edges from this manager. */
+  tasks: number;
+  /** Distinct target nodes of those edges (the manager itself is never
+   *  counted as its own employee). */
+  instances: number;
+}
+
+export interface WorkloadReport {
+  file: string;
+  managers: WorkloadEntry[];
+}
+
 export interface BuildResult {
   outPath: string;
   sha256: string;
@@ -47,7 +63,7 @@ export interface BuildResult {
 const isYaml = (p: string): boolean => /\.ya?ml$/i.test(p);
 
 /** The studio's own validation, run over an already-loaded project. */
-export function validateProject(project: ProjectFile, file: string): ValidationReport {
+export function validateProject(project: ProjectFile, file: string, opts: { verbose?: boolean } = {}): ValidationReport {
   const errors: string[] = [];
   const warnings: string[] = [];
   const byId = new Map(project.nodes.map((n) => [n.id, n]));
@@ -61,7 +77,9 @@ export function validateProject(project: ProjectFile, file: string): ValidationR
     const r = checkCable(s, t, e.data?.kind, e.data?.access);
     if (!r.verdict.ok) errors.push(`الرابط ${e.id}: ${r.verdict.reason}`);
   }
-  for (const p of collectProblems(project.nodes, project.edges, { tenant_id: project.tenant.tenant_id })) {
+  // Phase 6: ORG-003 is brief by default (one warning per planned
+  // department); --verbose restores the full per-node list.
+  for (const p of collectProblems(project.nodes, project.edges, { tenant_id: project.tenant.tenant_id }, { org003: opts.verbose ? 'per-node' : 'brief' })) {
     (p.severity === 'error' ? errors : warnings).push(`${p.code}: ${p.message}`);
   }
   return { file, ok: errors.length === 0, errors, warnings, nodes: project.nodes.length, edges: project.edges.length };
@@ -119,14 +137,57 @@ export async function loadProject(input: string): Promise<ProjectFile> {
 }
 
 /** Validates a .socroot.json or YAML file with the studio's own checks. Never throws. */
-export async function validateFile(filePath: string): Promise<ValidationReport> {
+export async function validateFile(filePath: string, opts: { verbose?: boolean } = {}): Promise<ValidationReport> {
   let project: ProjectFile;
   try {
     project = await loadProject(filePath);
   } catch (e) {
     return { file: filePath, ok: false, errors: [e instanceof Error ? e.message : String(e)], warnings: [], nodes: 0, edges: 0 };
   }
-  return validateProject(project, filePath);
+  return validateProject(project, filePath, opts);
+}
+
+// ---------------------------------------------------------------------------
+// Phase 6 — workload view
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-manager workload, in file order: for each manager, how many tasks it
+ * dispatches and how many distinct instances it supervises. A manager is a
+ * node with the `manager` role, or any node that dispatches tasks
+ * (TASK_DISPATCH_RESULT) — so a future dispatching role shows up too.
+ * Tasks and instances differ when one employee receives several tasks from
+ * the same manager; the manager itself is never one of its instances.
+ */
+export function workloadOf(project: ProjectFile): WorkloadEntry[] {
+  const byId = new Map(project.nodes.map((n) => [n.id, n]));
+  const managers = new Map<string, WorkloadEntry>();
+  const ensure = (id: string): WorkloadEntry => {
+    let entry = managers.get(id);
+    if (entry === undefined) {
+      entry = { managerId: id, managerLabel: byId.get(id)?.data.label ?? id, tasks: 0, instances: 0 };
+      managers.set(id, entry);
+    }
+    return entry;
+  };
+  for (const n of project.nodes) if (n.data.role === 'manager') ensure(n.id);
+  const targets = new Map<string, Set<string>>();
+  for (const e of project.edges) {
+    if (e.data?.kind !== 'TASK_DISPATCH_RESULT') continue;
+    ensure(e.source).tasks++;
+    if (e.target === e.source) continue;
+    let set = targets.get(e.source);
+    if (set === undefined) { set = new Set(); targets.set(e.source, set); }
+    set.add(e.target);
+  }
+  for (const [id, set] of targets) managers.get(id)!.instances = set.size;
+  return [...managers.values()];
+}
+
+/** Workload view of a .socroot.json or YAML file — throws on any load failure. */
+export async function workloadFile(input: string): Promise<WorkloadReport> {
+  const project = await loadProject(input);
+  return { file: input, managers: workloadOf(project) };
 }
 
 const writeProject = (project: ProjectFile, outPath: string): BuildResult => {

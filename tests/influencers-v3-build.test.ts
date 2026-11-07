@@ -515,8 +515,9 @@ describe('influencer system topology v3 (portfolio of 3 lines, 7 Nov 2026)', () 
     const problems = collectProblems(nodes, edges, { tenant_id: TENANT_ID });
     expect(errorCount(problems)).toBe(0);
     const warnings = problems.filter((p) => p.severity === 'warning');
-    // 20 employees + the manager, all inside the PLANNED department (v2: 14 + 1 = 15).
-    expect(warnings).toHaveLength(21);
+    // Phase 6: one brief ORG-003 warning per planned department (20 employees
+    // + the manager, all inside the PLANNED department; v2: 14 + 1 = 15) — not one per node.
+    expect(warnings).toHaveLength(1);
     expect(new Set(warnings.map((w) => w.code))).toEqual(new Set(['ORG-003']));
   });
 

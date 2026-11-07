@@ -53,30 +53,38 @@ describe('Phase 4 — registered influencer roles', () => {
 });
 
 describe('Phase 4 — CLI validate', () => {
-  it('accepts the three delivered files: 0 errors (warnings 6 / 15 / 21)', async () => {
+  it('accepts the three delivered files: 0 errors (1 brief ORG-003 warning each — Phase 6)', async () => {
     const v1 = await validateFile(V1);
     expect(v1.ok).toBe(true);
     expect(v1.errors).toEqual([]);
-    expect(v1.warnings).toHaveLength(6);
+    expect(v1.warnings).toHaveLength(1);
     expect([v1.nodes, v1.edges]).toEqual([17, 13]);
     const v2 = await validateFile(V2);
     expect(v2.ok).toBe(true);
     expect(v2.errors).toEqual([]);
-    expect(v2.warnings).toHaveLength(15);
+    expect(v2.warnings).toHaveLength(1);
     expect([v2.nodes, v2.edges]).toEqual([29, 43]);
     const v3 = await validateFile(V3);
     expect(v3.ok).toBe(true);
     expect(v3.errors).toEqual([]);
-    expect(v3.warnings).toHaveLength(21);
+    expect(v3.warnings).toHaveLength(1);
     expect([v3.nodes, v3.edges]).toEqual([39, 67]);
   });
 
-  it('accepts the v3 YAML (same 0 errors, same 21 warnings)', async () => {
+  it('accepts the v3 YAML (same 0 errors, same 1 brief warning)', async () => {
     const report = await validateFile(V3_YAML);
     expect(report.ok).toBe(true);
     expect(report.errors).toEqual([]);
-    expect(report.warnings).toHaveLength(21);
+    expect(report.warnings).toHaveLength(1);
     expect([report.nodes, report.edges]).toEqual([39, 67]);
+  });
+
+  it('validate --verbose restores the full per-node ORG-003 list (v3: 21)', async () => {
+    const report = await validateFile(V3, { verbose: true });
+    expect(report.ok).toBe(true);
+    expect(report.errors).toEqual([]);
+    expect(report.warnings).toHaveLength(21);
+    expect(new Set(report.warnings.map((w) => w.split(':')[0]))).toEqual(new Set(['ORG-003']));
   });
 
   it('rejects a broken file: bad JSON, wrong shape, unknown YAML role', async () => {
@@ -151,7 +159,11 @@ describe('Phase 4 — CLI end-to-end (spawned)', () => {
   it('validate exits 0 on v3 and 1 on a broken file', { timeout: 30000 }, () => {
     const ok = run(['validate', V3]);
     expect(ok.status).toBe(0);
-    expect(ok.stdout).toMatch(/0 أخطاء، 21 تحذيراً/);
+    expect(ok.stdout).toMatch(/0 أخطاء، 1 تحذيراً/);
+    expect(ok.stdout).toMatch(/Department dept_influencer_system \(PLANNED\): 21 employees/);
+    const verbose = run(['validate', V3, '--verbose']);
+    expect(verbose.status).toBe(0);
+    expect(verbose.stdout).toMatch(/0 أخطاء، 21 تحذيراً/);
     const broken = path.join(tmp, 'broken-e2e.socroot.json');
     fs.writeFileSync(broken, '{"bad": 1}', 'utf-8');
     const bad = run(['validate', broken]);

@@ -31,7 +31,10 @@ import type { CableKind, Horizon, ImplementationStatus, IsolationMode } from '..
  *             expands the listed template nodes here, line by line.
  *   edges:    one entry per edge, or one entry per fan-out / zip (see EdgeSpec).
  *             An endpoint containing `{n}` expands to every line's instance
- *             of that template node (see docs/DSL.md).
+ *             of that template node (see docs/DSL.md). Phase 6: an entry may
+ *             carry `dispatch:` instead of `to:` — one or both bulk-dispatch
+ *             rules (`department`, `line`) that expand to TASK_DISPATCH_RESULT
+ *             edges at build time, in file order (see EdgeSpec).
  *
  * Deliberately NOT in Phase 3 (later phases): the compiler itself never
  * loads role files — the definitions are passed to it as an option. The
@@ -131,10 +134,31 @@ export interface NodeSpec {
  * line-major: for line 1 the run's entries, then line 2, and so on — so
  * `[content_selector_{n}, creator_{n}, drf_{n}]` becomes
  * `content_selector_1, creator_1, drf_1, content_selector_2, …`.
+ *
+ * Phase 6 — bulk dispatch (`dispatch`, INSTEAD of `to`): one or both rules
+ * that expand to TASK_DISPATCH_RESULT edges at build time, so a manager's
+ * whole fan-out is two rule names instead of a hand-listed target list.
+ * `from` must be a single node id (the manager); `kind` must be
+ * TASK_DISPATCH_RESULT. The rules:
+ * - `department` — every employee node in the same parent zone as `from`
+ *   (the manager's department), excluding `from` itself, in file order.
+ *   Non-employee zone children (e.g. an L2 profile node) are not targets.
+ * - `line` — every employee instance of the line template, in template
+ *   order, line-major (line 1's instances, then line 2's, …). Non-employee
+ *   template nodes (e.g. `creator_profile_{n}`, `income_register_{n}` —
+ *   role l2) are not targets.
+ * Several rules in one entry union their targets (deduplicated) and the
+ * union is ordered by the file order of the target nodes — so
+ * `dispatch: [department, line]` on v3 reproduces the hand-listed fan-out
+ * exactly (plain staff, then line instances, then shared operations),
+ * instead of grouping targets by rule.
  */
 export interface EdgeSpec {
   from: string | string[];
-  to: string | string[];
+  to?: string | string[];
+  /** Phase 6: bulk-dispatch rule(s) — `department` and/or `line`. Present
+   *  only instead of `to`; `kind` must then be TASK_DISPATCH_RESULT. */
+  dispatch?: string | string[];
   kind: CableKind;
   /** MEMORY_BUS only; defaults to 'read' (the mkEdge rule). */
   access?: 'read' | 'write';

@@ -27,7 +27,11 @@ import type { CompileOptions, EdgeSpec, LayoutSpec, LineNodeSpec, LinesAnchor, L
  * lines abstraction: one line template in a `lines:` block, instantiated
  * N times at anchors in the `nodes:` list (`{n}` = the line index),
  * with auto-derived instance employee_ids and `{n}` edge endpoints that
- * expand from the same template (see docs/DSL.md).
+ * expand from the same template (see docs/DSL.md). Phase 6 adds bulk
+ * dispatch rules: an edge entry may carry `dispatch:` (one or both of
+ * `department`, `line`) instead of `to:`, expanding to TASK_DISPATCH_RESULT
+ * edges at build time — the v3 manager fan-out is two rule names, and the
+ * expansion reproduces the hand-listed twenty edges in the same order.
  *
  * The compiler does STRUCTURAL validation only (unknown role, unknown node
  * id, bad kind, duplicate id, missing config, bad cell, overlap…) with
@@ -49,6 +53,10 @@ export class DslError extends Error {
 }
 
 const STATUSES: ImplementationStatus[] = ['IMPLEMENTED', 'PARTIAL', 'PLANNED', 'TRIGGER_BASED', 'DEPRECATED'];
+
+/** Phase 6 — the bulk-dispatch rule names (see EdgeSpec in schema.ts). */
+const DISPATCH_RULES = ['department', 'line'] as const;
+type DispatchRule = (typeof DISPATCH_RULES)[number];
 
 /** Best-effort line lookup: first source line containing the needle (1-based). */
 function findLine(source: string, needle: string): number | undefined {
@@ -369,10 +377,33 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
     const where = `edges[${i}]`;
     if (!isRecord(entry)) fail(source, `الرابط في ${where} يجب أن يكون خريطة`, where);
     const from = asIdList(entry.from, `${where}.from`, where, source);
-    const to = asIdList(entry.to, `${where}.to`, where, source);
+    // Phase 6 — bulk dispatch: `dispatch:` replaces `to:` (never both).
+    // One rule name or a list of them; `from` must be a single manager.
+    const hasDispatch = entry.dispatch !== undefined;
+    const hasTo = entry.to !== undefined;
+    if (hasDispatch && hasTo) {
+      fail(source, `الرابط في ${where} يحمل dispatch وto معاً — قاعدة الإسناد تحل محل قائمة الأهداف`, `${where}.dispatch`, 'dispatch:');
+    }
+    if (!hasDispatch && !hasTo) {
+      fail(source, `الرابط في ${where} بلا هدف — أعطه to أو قاعدة dispatch`, `${where}.to`, 'kind:');
+    }
+    let dispatch: string | string[] | undefined;
+    if (hasDispatch) {
+      if (from.length > 1) {
+        fail(source, `قاعدة الإسناد في ${where} تتطلب مصدراً واحداً (المدير) — أُعطيت قائمة مصادر`, `${where}.from`, `from: [${from.join(', ')}]`);
+      }
+      const rules = asIdList(entry.dispatch, `${where}.dispatch`, where, source);
+      for (const rule of rules) {
+        if (!(DISPATCH_RULES as readonly string[]).includes(rule)) {
+          fail(source, `قاعدة الإسناد "${rule}" غير معروفة — القواعد المقبولة: ${DISPATCH_RULES.join('، ')}`, `${where}.dispatch`, `dispatch: ${rule}`);
+        }
+      }
+      dispatch = rules.length === 1 ? rules[0]! : rules;
+    }
+    const to = hasTo ? asIdList(entry.to, `${where}.to`, where, source) : undefined;
     // Phase 3: a `{n}` endpoint must be a template node id, verbatim —
     // it expands to every line's instance of that node.
-    for (const [side, ids] of [['from', from], ['to', to]] as const) {
+    for (const [side, ids] of [['from', from], ['to', to ?? []]] as const) {
       for (const id of ids) {
         if (!id.includes('{n}')) continue;
         if (lines === undefined) {
@@ -387,6 +418,9 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
     if (!(CABLE_KINDS as readonly string[]).includes(kind)) {
       fail(source, `نوع الكابل "${kind}" غير معروف — الأنواع المقبولة: ${CABLE_KINDS.join('، ')}`, `${where}.kind`, `kind: ${kind}`);
     }
+    if (hasDispatch && kind !== 'TASK_DISPATCH_RESULT') {
+      fail(source, `قاعدة الإسناد "dispatch" تُترجم إلى روابط TASK_DISPATCH_RESULT فقط — النوع المعطى: ${kind}`, `${where}.kind`, `kind: ${kind}`);
+    }
     const access = optString(entry, 'access', where, source);
     if (access !== undefined && !['read', 'write'].includes(access)) {
       fail(source, `الوصول "${access}" غير معروف — القيم المقبولة: read أو write`, `${where}.access`, `access: ${access}`);
@@ -394,7 +428,7 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
     if (access !== undefined && kind !== 'MEMORY_BUS') {
       fail(source, `الوصول "access" يخص MEMORY_BUS فقط — الرابط من نوع ${kind} لا يحمل وصولاً`, `${where}.access`, `access: ${access}`);
     }
-    return { from: from.length === 1 ? from[0] : from, to: to.length === 1 ? to[0] : to, kind: kind as CableKind, access: access as 'read' | 'write' | undefined };
+    return { from: from.length === 1 ? from[0] : from, ...(to !== undefined ? { to: to.length === 1 ? to[0] : to } : {}), ...(dispatch !== undefined ? { dispatch } : {}), kind: kind as CableKind, access: access as 'read' | 'write' | undefined };
   });
 
   return {
@@ -594,6 +628,61 @@ function expandEndpoints(side: string | string[], count: number, source: string)
 }
 
 /**
+ * Phase 6 — one bulk-dispatch rule → its target node ids, in rule order.
+ * `nodes` is the EXPANDED node list (file order); `fromId` is the single
+ * manager the entry dispatches from.
+ * - `department`: every employee node in the same parent zone as the
+ *   manager, excluding the manager itself. Non-employee zone children
+ *   (e.g. an L2 profile node) are not targets.
+ * - `line`: every employee instance of the line template, in template
+ *   order, line-major. Non-employee template nodes take no dispatch.
+ */
+function dispatchRuleTargets(rule: DispatchRule, fromId: string, spec: TopologySpec, nodes: NodeSpec[], ctx: BuildCtx, source: string): string[] {
+  if (rule === 'department') {
+    const fromNode = nodes.find((n) => n.id === fromId);
+    if (fromNode === undefined) {
+      fail(source, `مصدر قاعدة الإسناد "${fromId}" غير موجود بين العقد`, 'edges.from', `from: ${fromId}`);
+    }
+    if (fromNode.parent === undefined) {
+      fail(source, `قاعدة department تتطلب أن يكون المصدر "${fromId}" داخل منطقة (قسم) — العقدة بلا أب`, 'edges.from', `from: ${fromId}`);
+    }
+    return nodes
+      .filter((n) => n.parent === fromNode.parent && n.id !== fromId && isEmployeeRole(n.role, ctx))
+      .map((n) => n.id);
+  }
+  if (spec.lines === undefined) {
+    fail(source, `قاعدة line تتطلب قسم lines — بلا قالب خطوط لا مثيلات تُسند إليها`, 'edges.dispatch', 'dispatch: line');
+  }
+  const out: string[] = [];
+  for (const t of spec.lines.nodes) {
+    if (!isEmployeeRole(t.role, ctx)) continue;
+    for (let n = 1; n <= spec.lines.count; n++) out.push(substLine(t.id, n));
+  }
+  return out;
+}
+
+/**
+ * Phase 6 — a `dispatch:` entry → its target node ids. Several rules in
+ * one entry union their targets (deduplicated); the union is ordered by
+ * the FILE ORDER of the target nodes — not grouped by rule — so
+ * `dispatch: [department, line]` on v3 reproduces the hand-listed fan-out
+ * exactly: plain staff, then line instances, then shared operations.
+ */
+function expandDispatch(e: EdgeSpec, spec: TopologySpec, nodes: NodeSpec[], ctx: BuildCtx, source: string): string[] {
+  const rules = Array.isArray(e.dispatch) ? (e.dispatch as DispatchRule[]) : [e.dispatch as DispatchRule];
+  const order = new Map(nodes.map((n, i) => [n.id, i]));
+  const seen = new Set<string>();
+  const targets: string[] = [];
+  for (const rule of rules) {
+    for (const id of dispatchRuleTargets(rule, e.from as string, spec, nodes, ctx, source)) {
+      if (!seen.has(id)) { seen.add(id); targets.push(id); }
+    }
+  }
+  targets.sort((a, b) => (order.get(a) ?? Number.MAX_SAFE_INTEGER) - (order.get(b) ?? Number.MAX_SAFE_INTEGER));
+  return targets;
+}
+
+/**
  * Two grid nodes in the same cell of the same parent would sit exactly on
  * top of each other — refuse at once, naming the pair. Runs on the
  * EXPANDED nodes (Phase 3): template instances and `after-lines` rows only
@@ -683,11 +772,19 @@ export function compileSpec(spec: TopologySpec, options: CompileOptions = {}, so
   const expandedNodes = expandNodes(spec, ctx);
   checkCells(expandedNodes, source);
   const count = spec.lines?.count ?? 0;
-  const expandedEdges = spec.edges.map((e) => ({
-    ...e,
-    from: expandEndpoints(e.from, count, source),
-    to: expandEndpoints(e.to, count, source),
-  }));
+  const expandedEdges = spec.edges.map((e) => {
+    // Phase 6: a dispatch entry expands from the rules (the expanded node
+    // list is the file order the union is sorted by); a plain entry expands
+    // its `{n}` endpoints as before.
+    if (e.dispatch !== undefined) {
+      return { ...e, from: [e.from as string], to: expandDispatch(e, spec, expandedNodes, ctx, source) };
+    }
+    return {
+      ...e,
+      from: expandEndpoints(e.from, count, source),
+      to: expandEndpoints(e.to!, count, source),
+    };
+  });
   const nodes: SNode[] = [];
   const byId = new Map<string, SNode>();
   for (const n of expandedNodes) {
