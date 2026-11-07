@@ -2,7 +2,7 @@ import type { RoleDefinition } from '../registry';
 import type { CableKind, Horizon, ImplementationStatus, IsolationMode } from '../types';
 
 /**
- * The YAML topology spec (Phase 1; layout in Phase 2). One document:
+ * The YAML topology spec (Phases 1–3; layout in Phase 2, lines in Phase 3). One document:
  *
  *   project:  id / name / tenant / horizon (+ optional created_at for a
  *             deterministic build — the v3 example pins it so compiling the
@@ -15,18 +15,31 @@ import type { CableKind, Horizon, ImplementationStatus, IsolationMode } from '..
  *             `preset` (resolved from src/dsl/presets.ts) or inline text.
  *   layout:   the grid the engine places `lane`/`row` nodes on (step_x,
  *             step_y, pad; defaults 320/170/40 — the v3 grid). Phase 2.
+ *   lines:    ONE line template + a count (Phase 3): the template's nodes
+ *             are instantiated once per line, with `{n}` = the line index
+ *             (1-based). Anchors in `nodes` say where each template node's
+ *             instances land in the emitted file order.
  *   nodes:    a flat list in file order — the compiler keeps document order,
  *             exactly like the generator it replaces. A node with `parent:`
  *             becomes a child of that zone (parentId + extent 'parent').
  *             A node is placed either by explicit `at:` (override) or by
  *             `lane:`/`row:` on the layout grid (Phase 2); exactly one of
- *             the two, never both, never neither.
+ *             the two, never both, never neither. A `row` of `after-lines`
+ *             means the first row after the line block (count + 1).
+ *             A `{ lines: [...] }` entry is an anchor, not a node: it
+ *             expands the listed template nodes here, line by line.
  *   edges:    one entry per edge, or one entry per fan-out / zip (see EdgeSpec).
+ *             An endpoint containing `{n}` expands to every line's instance
+ *             of that template node (see docs/DSL.md).
  *
- * Deliberately NOT in Phase 2 (later phases): no `lines:` abstraction —
- * repeated lines are written out (Phase 3); no CLI or file loading for
+ * Deliberately NOT in Phase 3 (later phases): no CLI or file loading for
  * custom roles — the definitions are passed to the compiler as an option
- * (Phase 4).
+ * (Phase 4). The top-level composition (founder / orchestrator / zone /
+ * right column / web zone / kill switch) stays explicit `at:` positions:
+ * only the grid rows know about the line count (`after-lines`); the
+ * absolute positions of pe / bg / kill are correct for the authored
+ * count and are the preset's job to shift for other counts (see
+ * src/presets/portfolio.ts and docs/LAYOUT.md).
  */
 export interface ProjectSpec {
   id: string;
@@ -77,8 +90,10 @@ export interface NodeSpec {
    *  at step_x × lane. Relative to the node's parent zone, or to the
    *  canvas for a top-level node. Requires `row`. */
   lane?: number;
-  /** Grid row (Phase 2): y = step_y × row. Requires `lane`. */
-  row?: number;
+  /** Grid row (Phase 2): y = step_y × row — or the string `after-lines`
+   *  (Phase 3): the first row after the line block, i.e. count + 1.
+   *  Requires `lane` and a `lines:` block. */
+  row?: number | 'after-lines';
   /** Defaults to the role definition's English label (the factory's rule). */
   label?: string;
   /** Defaults to the role definition's implementation_status. */
@@ -99,6 +114,19 @@ export interface NodeSpec {
   parent?: string;
 }
 
+/**
+ * Edge expansion. A single string on each side is one edge. A list on ONE
+ * side fans out (one edge per entry, in listed order). Lists on BOTH sides
+ * zip pairwise and must have equal length — e.g. three drafters to their
+ * three creator profiles in one line.
+ *
+ * Phase 3: an endpoint containing `{n}` expands to every line's instance
+ * of that template node (the endpoint must exactly equal a template node
+ * id). A run of consecutive `{n}` endpoints in one list expands
+ * line-major: for line 1 the run's entries, then line 2, and so on — so
+ * `[content_selector_{n}, creator_{n}, drf_{n}]` becomes
+ * `content_selector_1, creator_1, drf_1, content_selector_2, …`.
+ */
 export interface EdgeSpec {
   from: string | string[];
   to: string | string[];
@@ -108,11 +136,56 @@ export interface EdgeSpec {
 }
 
 /**
- * Edge expansion. A single string on each side is one edge. A list on ONE
- * side fans out (one edge per entry, in listed order). Lists on BOTH sides
- * zip pairwise and must have equal length — e.g. three drafters to their
- * three creator profiles in one line.
+ * One entry of a line template (Phase 3). Same fields as NodeSpec, except:
+ * - `id` MUST contain `{n}` (the line index, 1-based) — it is what makes
+ *   each instance distinct. `label`, `name` and `employee_id` MAY contain
+ *   `{n}`; `parent` and `prefix` must not.
+ * - `row` may be the string `'{n}'` — the instance's row IS its line
+ *   number (write it quoted in YAML: `row: "{n}"`).
+ * - `step` (with `at:` only) shifts each later instance: instance k sits
+ *   at `at + (k − 1) × step`. The v3 income registers use it
+ *   (`at: [2760, 680]`, `step: [0, 170]`).
+ * - `employee_id`, when omitted for an employee role, is derived by the
+ *   compiler as `<prefix>.<role>_<n>.v1` — never write it by hand for
+ *   instances. Non-employee roles (e.g. l2) take no employee_id.
+ * - `size` / `department_id` are the zone-only fields, as in NodeSpec.
  */
+export interface LineNodeSpec {
+  id: string;
+  role: string;
+  at?: [number, number];
+  step?: [number, number];
+  lane?: number;
+  row?: number | '{n}';
+  label?: string;
+  status?: ImplementationStatus;
+  prefix?: string;
+  employee_id?: string;
+  name?: string;
+  size?: [number, number];
+  department_id?: string;
+  parent?: string;
+}
+
+/**
+ * An anchor in the `nodes:` list (Phase 3): where a slice of the line
+ * template is instantiated, in file order. `true` expands every template
+ * node not yet claimed by an earlier anchor, in template order; a list
+ * expands exactly those template ids, in listed order. Every template
+ * node must be claimed by exactly one anchor — the compiler refuses
+ * unclaimed and doubly-claimed template nodes.
+ */
+export interface LinesAnchor {
+  lines: true | string[];
+}
+
+/** One line template + its count (Phase 3). */
+export interface LinesSpec {
+  /** Number of lines (≥ 1). The v3 portfolio uses 3. */
+  count: number;
+  nodes: LineNodeSpec[];
+}
+
 export interface TopologySpec {
   project: ProjectSpec;
   defaults?: DefaultsSpec;
@@ -124,7 +197,12 @@ export interface TopologySpec {
   /** Grid parameters for `lane`/`row` nodes. If omitted, the engine
    *  defaults (320/170/40) apply. */
   layout?: LayoutSpec;
-  nodes: NodeSpec[];
+  /** Line template + count (Phase 3). When present, `nodes` must contain
+   *  anchors claiming every template node exactly once. */
+  lines?: LinesSpec;
+  /** Nodes in file order, or lines anchors. The compiler keeps document
+   *  order; an anchor expands in place, line by line. */
+  nodes: Array<NodeSpec | LinesAnchor>;
   edges: EdgeSpec[];
 }
 

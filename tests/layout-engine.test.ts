@@ -22,7 +22,10 @@ import type { SEdge, SNode } from '../src/types';
 
 const YAML_PATH = path.join(process.cwd(), 'examples', 'influencers_system_v3.yaml');
 const yaml = fs.readFileSync(YAML_PATH, 'utf-8');
-const yamlSpec = loadYaml(yaml) as { nodes: Array<Record<string, unknown>> };
+const yamlSpec = loadYaml(yaml) as {
+  nodes: Array<Record<string, unknown>>;
+  lines?: { count: number; nodes: Array<Record<string, unknown>> };
+};
 const compileV3 = () => compileTopology(yaml, { customRoles: influencerRoleDefs });
 
 /** Delivered JSON, the golden reference for positions and zone sizes. */
@@ -35,12 +38,28 @@ const zoneOf = (file: string, zoneId: string) => jsonOf(file).nodes.find((n) => 
 describe('layout engine — grid reproduces the v3 manual positions exactly', () => {
   it('every lane/row node in the v3 YAML lands on its delivered position', () => {
     const delivered = new Map(jsonOf('influencers_system_v3.socroot.json').nodes.map((n) => [n.id, n.position]));
+    const count = yamlSpec.lines!.count;
     let checked = 0;
-    for (const n of yamlSpec.nodes) {
-      if (typeof n.lane !== 'number' || typeof n.row !== 'number') continue;
-      expect(gridCellPosition(n.lane, n.row)).toEqual(delivered.get(n.id as string));
+    const check = (id: string, lane: number, row: number) => {
+      expect(gridCellPosition(lane, row)).toEqual(delivered.get(id));
       checked++;
+    };
+    // Explicit grid children: numeric cells, plus the shared-operations row
+    // (`after-lines` = count + 1).
+    for (const n of yamlSpec.nodes) {
+      if (typeof n.lane !== 'number') continue;
+      if (typeof n.row === 'number') check(n.id as string, n.lane, n.row);
+      else if (n.row === 'after-lines') check(n.id as string, n.lane, count + 1);
     }
+    // Template grid children (Phase 3): one cell per line, row = the line.
+    for (const t of yamlSpec.lines!.nodes) {
+      if (typeof t.lane !== 'number') continue;
+      for (let line = 1; line <= count; line++) {
+        const row = t.row === '{n}' ? line : t.row as number;
+        check((t.id as string).replaceAll('{n}', String(line)), t.lane, row);
+      }
+    }
+    // 8 explicit numeric + 4 after-lines + 12 template instances = 24.
     expect(checked).toBe(24);
   });
 
@@ -105,12 +124,23 @@ describe('layout engine — zone auto-sizing vs the three delivered maps', () =>
 
 describe('layout engine — the v3 YAML relies on the grid', () => {
   it('24 zone children use lane/row; only the 15 top-level nodes keep at:', () => {
+    const count = yamlSpec.lines!.count;
+    // Explicit grid children: 8 on numeric cells + 4 on the after-lines row.
+    const withCell = yamlSpec.nodes.filter((n) => typeof n.lane === 'number' && (typeof n.row === 'number' || n.row === 'after-lines'));
+    expect(withCell).toHaveLength(12);
+    // Template grid children (Phase 3): 4 per line (the production cell).
+    const templateCells = yamlSpec.lines!.nodes.filter((t) => typeof t.lane === 'number');
+    expect(templateCells).toHaveLength(4);
+    expect(withCell.length + templateCells.length * count).toBe(24);
+    // Explicit at: nodes: 12; the template's at: node (the income register)
+    // adds one per line — 15 top-level nodes keep at: in total.
     const withAt = yamlSpec.nodes.filter((n) => n.at !== undefined);
-    const withCell = yamlSpec.nodes.filter((n) => typeof n.lane === 'number' && typeof n.row === 'number');
-    expect(withCell).toHaveLength(24);
-    expect(withAt).toHaveLength(15);
+    expect(withAt).toHaveLength(12);
+    const templateAt = yamlSpec.lines!.nodes.filter((t) => t.at !== undefined);
+    expect(templateAt).toHaveLength(1);
+    expect(withAt.length + templateAt.length * count).toBe(15);
     expect(withAt.map((n) => n.id).sort()).toEqual(
-      ['bg', 'founder', 'income_register_1', 'income_register_2', 'income_register_3', 'kill', 'l1', 'l2', 'l3', 'orch', 'pe', 'ssrf', 'zone_dept', 'zone_web', 'web'].sort(),
+      ['bg', 'founder', 'kill', 'l1', 'l2', 'l3', 'orch', 'pe', 'ssrf', 'web', 'zone_dept', 'zone_web'].sort(),
     );
   });
 

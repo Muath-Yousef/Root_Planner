@@ -1,7 +1,7 @@
 import { load } from 'js-yaml';
 import { CABLE_KINDS, getRole, mkEdge } from '../registry';
 import type { RoleDefinition } from '../registry';
-import { makeEmployeeConfig, templateNodeData } from '../engine/employeeFactory';
+import { employeeId, makeEmployeeConfig, templateNodeData } from '../engine/employeeFactory';
 import {
   DEFAULT_GRID_PARAMS, findOverlaps, GRID_MIN_STEP_X, gridCellPosition, zoneSizeFromChildren,
   type GridParams,
@@ -9,10 +9,10 @@ import {
 import { CURRENT_FORMAT_VERSION } from '../schemas/project';
 import type { CableKind, ImplementationStatus, ProjectFile, SEdge, SNode } from '../types';
 import { CONFIG_KEYS, CONFIG_PRESETS, type ConfigKey } from './presets';
-import type { CompileOptions, EdgeSpec, LayoutSpec, NodeSpec, TopologySpec } from './schema';
+import type { CompileOptions, EdgeSpec, LayoutSpec, LineNodeSpec, LinesAnchor, LinesSpec, NodeSpec, TopologySpec } from './schema';
 
 /**
- * Phases 1–2 — YAML DSL compiler (YAML → ProjectFile, format v2).
+ * Phases 1–3 — YAML DSL compiler (YAML → ProjectFile, format v2).
  *
  * The compiler is a declarative interpreter over the studio's own factory:
  * registry roles go through templateNodeData, custom roles through
@@ -23,7 +23,11 @@ import type { CompileOptions, EdgeSpec, LayoutSpec, NodeSpec, TopologySpec } fro
  * tests/dsl-compiler.test.ts). Phase 2 adds the layout engine: nodes are
  * placed by `at:` (explicit override) or by `lane:`/`row:` on the grid
  * (`src/engine/layout.ts`), zones without `size` are sized from their
- * children, and a final gate refuses overlapping nodes.
+ * children, and a final gate refuses overlapping nodes. Phase 3 adds the
+ * lines abstraction: one line template in a `lines:` block, instantiated
+ * N times at anchors in the `nodes:` list (`{n}` = the line index),
+ * with auto-derived instance employee_ids and `{n}` edge endpoints that
+ * expand from the same template (see docs/DSL.md).
  *
  * The compiler does STRUCTURAL validation only (unknown role, unknown node
  * id, bad kind, duplicate id, missing config, bad cell, overlap…) with
@@ -88,6 +92,22 @@ function optInt(obj: Record<string, unknown>, key: string, where: string, source
   }
   return v as number;
 }
+
+/** A grid row: an integer, or one allowed keyword string (`'{n}'` in a line
+ *  template, `'after-lines'` in a plain node). */
+function optRow<S extends string>(obj: Record<string, unknown>, key: string, where: string, source: string, allowedString?: S): number | S | undefined {
+  const v = obj[key];
+  if (v === undefined) return undefined;
+  if (typeof v === 'number') {
+    if (!Number.isInteger(v)) fail(source, `الحقل "${key}" في ${where} يجب أن يكون عدداً صحيحاً`, `${where}.${key}`);
+    return v;
+  }
+  if (typeof v === 'string' && allowedString !== undefined && v === allowedString) return allowedString;
+  fail(source, `الحقل "${key}" في ${where} يجب أن يكون عدداً صحيحاً${allowedString !== undefined ? ` أو "${allowedString}"` : ''}`, `${where}.${key}`);
+}
+
+/** Does this string carry the line placeholder `{n}`? */
+const hasPlaceholder = (s: string): boolean => s.includes('{n}');
 
 function asIdList(v: unknown, field: string, where: string, source: string): string[] {
   const list = Array.isArray(v) ? v : [v];
@@ -157,15 +177,104 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
     configs = raw.configs as Record<string, string>;
   }
 
+  // --- lines block (Phase 3): one template + a count ---
+  let lines: LinesSpec | undefined;
+  const templateIds = new Set<string>();
+  if (raw.lines !== undefined) {
+    if (!isRecord(raw.lines)) fail(source, 'قسم "lines" يجب أن يكون خريطة', 'lines');
+    const count = raw.lines.count;
+    if (typeof count !== 'number' || !Number.isInteger(count) || count < 1) {
+      fail(source, 'الحقل "count" في lines يجب أن يكون عدداً صحيحاً ≥ 1 — عدد الخطوط', 'lines.count', 'count:');
+    }
+    if (!Array.isArray(raw.lines.nodes) || raw.lines.nodes.length === 0) {
+      fail(source, 'قسم "lines.nodes" مطلوب ويجب أن يكون قائمة غير فارغة', 'lines.nodes');
+    }
+    const template: LineNodeSpec[] = raw.lines.nodes.map((entry, i) => {
+      const where = `lines.nodes[${i}]`;
+      if (!isRecord(entry)) fail(source, `عقدة القالب في ${where} يجب أن تكون خريطة`, where);
+      const tid = reqString(entry, 'id', where, source);
+      if (!hasPlaceholder(tid)) {
+        fail(source, `معرف عقدة القالب "${tid}" يجب أن يحمل {n} — بدونه تتصادم المثيلات على المعرف نفسه`, `${where}.id`, `id: ${tid}`);
+      }
+      if (templateIds.has(tid)) fail(source, `معرف عقدة القالب "${tid}" مكرر في القالب`, `${where}.id`, `id: ${tid}`);
+      templateIds.add(tid);
+      const role = reqString(entry, 'role', where, source);
+      const at = entry.at !== undefined ? reqPair(entry, 'at', where, source) : undefined;
+      const step = entry.step !== undefined ? reqPair(entry, 'step', where, source) : undefined;
+      if (step !== undefined && at === undefined) {
+        fail(source, `الحقل "step" في عقدة القالب "${tid}" يتطلب at — بلا موضع صريح لا شيء يُزاح`, `${where}.step`, `id: ${tid}`);
+      }
+      const lane = optInt(entry, 'lane', where, source);
+      const row = optRow(entry, 'row', where, source, '{n}');
+      if (at !== undefined && (lane !== undefined || row !== undefined)) {
+        fail(source, `عقدة القالب "${tid}" تحمل at وlane/row معاً — اختر أحدهما`, `${where}.at`, `id: ${tid}`);
+      }
+      if ((lane === undefined) !== (row === undefined)) {
+        fail(source, `عقدة القالب "${tid}": lane وrow معاً أو لا شيء — أحدهما مفقود`, `${where}.lane`, `id: ${tid}`);
+      }
+      if (at === undefined && lane === undefined) {
+        fail(source, `عقدة القالب "${tid}" بلا موضع — أعطها at أو lane/row`, `${where}.at`, `id: ${tid}`);
+      }
+      if (lane !== undefined && lane < 0) fail(source, `العمود lane لعقدة القالب "${tid}" يجب ألا يكون سالباً`, `${where}.lane`, `id: ${tid}`);
+      if (typeof row === 'number' && row < 0) fail(source, `الصف row لعقدة القالب "${tid}" يجب ألا يكون سالباً`, `${where}.row`, `id: ${tid}`);
+      const label = optString(entry, 'label', where, source);
+      const status = optString(entry, 'status', where, source);
+      if (status !== undefined && !(STATUSES as readonly string[]).includes(status)) {
+        fail(source, `الحالة "${status}" لعقدة القالب "${tid}" غير معروفة — القيم المقبولة: ${STATUSES.join('، ')}`, `${where}.status`, `id: ${tid}`);
+      }
+      const employeeIdOpt = optString(entry, 'employee_id', where, source);
+      if (employeeIdOpt !== undefined && !hasPlaceholder(employeeIdOpt)) {
+        fail(source, `الحقل "employee_id" في عقدة القالب "${tid}" يجب أن يحمل {n} — بدونه تتشارك المثيلات المعرف نفسه`, `${where}.employee_id`, `id: ${tid}`);
+      }
+      const name = optString(entry, 'name', where, source);
+      const prefix = optString(entry, 'prefix', where, source);
+      const parent = optString(entry, 'parent', where, source);
+      if (prefix !== undefined && hasPlaceholder(prefix)) fail(source, `الحقل "prefix" في عقدة القالب "${tid}" لا يحمل {n} — البادئة ثابتة لكل المثيلات`, `${where}.prefix`, `id: ${tid}`);
+      if (parent !== undefined && hasPlaceholder(parent)) fail(source, `الحقل "parent" في عقدة القالب "${tid}" لا يحمل {n} — الأب منطقة واحدة ثابتة`, `${where}.parent`, `id: ${tid}`);
+      const t: LineNodeSpec = {
+        id: tid, role, at, step, lane, row, label, status: status as ImplementationStatus | undefined,
+        prefix, employee_id: employeeIdOpt, name,
+        department_id: optString(entry, 'department_id', where, source),
+        parent,
+      };
+      if (entry.size !== undefined) t.size = reqPair(entry, 'size', where, source);
+      return t;
+    });
+    lines = { count, nodes: template };
+  }
+
   if (!Array.isArray(raw.nodes) || raw.nodes.length === 0) fail(source, 'قسم "nodes" مطلوب ويجب أن يكون قائمة غير فارغة', 'nodes');
-  const nodes: NodeSpec[] = raw.nodes.map((entry, i) => {
+  const nodes: Array<NodeSpec | LinesAnchor> = raw.nodes.map((entry, i) => {
     const where = `nodes[${i}]`;
     if (!isRecord(entry)) fail(source, `العقدة في ${where} يجب أن تكون خريطة`, where);
+    if ('lines' in entry) {
+      // Anchor: `{ lines: true }` or `{ lines: [<template id>, ...] }` — and nothing else.
+      if (Object.keys(entry).length !== 1) {
+        fail(source, `مرساة الخطوط في ${where} تحمل lines فقط — لا تُخلط مع حقول عقدة`, where);
+      }
+      if (lines === undefined) {
+        fail(source, `مرساة الخطوط في ${where} بلا قسم lines — عرّف القالب أولاً`, `${where}.lines`);
+      }
+      const v = entry.lines;
+      if (v === true) return { lines: true };
+      if (Array.isArray(v) && v.every((x) => typeof x === 'string')) {
+        for (const tid of v as string[]) {
+          if (!templateIds.has(tid)) {
+            fail(source, `مرساة الخطوط في ${where} تشير إلى عقدة قالب "${tid}" غير موجودة في lines.nodes`, `${where}.lines`, `lines: [${(v as string[]).join(', ')}]`);
+          }
+        }
+        return { lines: v as string[] };
+      }
+      fail(source, `الحقل "lines" في ${where} يجب أن يكون true أو قائمة معرفات عقد قالب`, `${where}.lines`);
+    }
     const nid = reqString(entry, 'id', where, source);
+    if (hasPlaceholder(nid)) {
+      fail(source, `المعرف "${nid}" يحمل {n} خارج قالب خطوط — {n} محجوز لعقد القالب في lines.nodes`, `${where}.id`, `id: ${nid}`);
+    }
     const role = reqString(entry, 'role', where, source);
     const at = entry.at !== undefined ? reqPair(entry, 'at', where, source) : undefined;
     const lane = optInt(entry, 'lane', where, source);
-    const row = optInt(entry, 'row', where, source);
+    const row = optRow(entry, 'row', where, source, 'after-lines');
     if (at !== undefined && (lane !== undefined || row !== undefined)) {
       fail(source, `العقدة "${nid}" تحمل at وlane/row معاً — اختر أحدهما`, `${where}.at`, `id: ${nid}`);
     }
@@ -176,34 +285,53 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
       fail(source, `العقدة "${nid}" بلا موضع — أعطها at أو lane/row`, `${where}.at`, `id: ${nid}`);
     }
     if (lane !== undefined && lane < 0) fail(source, `العمود lane للعقدة "${nid}" يجب ألا يكون سالباً`, `${where}.lane`, `id: ${nid}`);
-    if (row !== undefined && row < 0) fail(source, `الصف row للعقدة "${nid}" يجب ألا يكون سالباً`, `${where}.row`, `id: ${nid}`);
+    if (typeof row === 'number' && row < 0) fail(source, `الصف row للعقدة "${nid}" يجب ألا يكون سالباً`, `${where}.row`, `id: ${nid}`);
+    if (row === 'after-lines' && lines === undefined) {
+      fail(source, `الصف "after-lines" للعقدة "${nid}" يتطلب قسم lines — بلا خطوط لا صف يليها`, `${where}.row`, `id: ${nid}`);
+    }
     const label = optString(entry, 'label', where, source);
     const status = optString(entry, 'status', where, source);
     if (status !== undefined && !(STATUSES as readonly string[]).includes(status)) {
       fail(source, `الحالة "${status}" للعقدة "${nid}" غير معروفة — القيم المقبولة: ${STATUSES.join('، ')}`, `${where}.status`, `id: ${nid}`);
     }
+    const employeeIdOpt = optString(entry, 'employee_id', where, source);
+    const nameOpt = optString(entry, 'name', where, source);
+    for (const [key, value] of [['label', label], ['name', nameOpt], ['employee_id', employeeIdOpt]] as const) {
+      if (value !== undefined && hasPlaceholder(value)) {
+        fail(source, `الحقل "${key}" في العقدة "${nid}" يحمل {n} خارج قالب خطوط — {n} محجوز لعقد القالب`, `${where}.${key}`, `id: ${nid}`);
+      }
+    }
     const node: NodeSpec = {
       id: nid, role, at, lane, row, label, status: status as ImplementationStatus | undefined,
       prefix: optString(entry, 'prefix', where, source),
-      employee_id: optString(entry, 'employee_id', where, source),
-      name: optString(entry, 'name', where, source),
+      employee_id: employeeIdOpt,
+      name: nameOpt,
       department_id: optString(entry, 'department_id', where, source),
       parent: optString(entry, 'parent', where, source),
     };
     if (entry.size !== undefined) node.size = reqPair(entry, 'size', where, source);
     return node;
   });
-  // Two grid nodes in the same cell of the same parent would sit exactly
-  // on top of each other — refuse at once, naming the pair.
-  const cells = new Map<string, string>();
-  for (const n of nodes) {
-    if (n.lane === undefined) continue;
-    const key = `${n.parent ?? ''}|${n.lane}|${n.row}`;
-    const prev = cells.get(key);
-    if (prev !== undefined) {
-      fail(source, `العقدتان "${prev}" و"${n.id}" في الخلية نفسها (lane ${n.lane}، row ${n.row}) — خليتان متطابقتان تتداخلان`, `nodes.${n.id}.lane`, `id: ${n.id}`);
+  // Anchor coverage (Phase 3): every template node is claimed by exactly
+  // one anchor — unclaimed template nodes would silently vanish, and a
+  // double claim would emit the same instances twice.
+  if (lines !== undefined) {
+    const claimed = new Set<string>();
+    for (const entry of nodes) {
+      if (!('lines' in entry)) continue;
+      const ids = entry.lines === true ? [...templateIds] : entry.lines;
+      for (const tid of ids) {
+        if (claimed.has(tid)) {
+          fail(source, `عقدة القالب "${tid}" مُعلنة في مرساتين — كل عقدة قالب تُوسَّع في موضع واحد فقط`, 'nodes');
+        }
+        claimed.add(tid);
+      }
     }
-    cells.set(key, n.id);
+    for (const tid of templateIds) {
+      if (!claimed.has(tid)) {
+        fail(source, `عقدة القالب "${tid}" بلا مرساة — كل عقدة قالب تحتاج مرساة واحدة في nodes`, 'nodes');
+      }
+    }
   }
 
   let layout: LayoutSpec | undefined;
@@ -226,6 +354,19 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
     if (!isRecord(entry)) fail(source, `الرابط في ${where} يجب أن يكون خريطة`, where);
     const from = asIdList(entry.from, `${where}.from`, where, source);
     const to = asIdList(entry.to, `${where}.to`, where, source);
+    // Phase 3: a `{n}` endpoint must be a template node id, verbatim —
+    // it expands to every line's instance of that node.
+    for (const [side, ids] of [['from', from], ['to', to]] as const) {
+      for (const id of ids) {
+        if (!id.includes('{n}')) continue;
+        if (lines === undefined) {
+          fail(source, `الطرف "${id}" يحمل {n} بلا قسم lines — {n} محجوز لعقد القالب`, `${where}.${side}`, `${id}`);
+        }
+        if (!templateIds.has(id)) {
+          fail(source, `الطرف "${id}" لا يطابق أي عقدة قالب في lines.nodes — الطرف المولَّد يجب أن يكون معرف قالب كما هو`, `${where}.${side}`, `${id}`);
+        }
+      }
+    }
     const kind = reqString(entry, 'kind', where, source);
     if (!(CABLE_KINDS as readonly string[]).includes(kind)) {
       fail(source, `نوع الكابل "${kind}" غير معروف — الأنواع المقبولة: ${CABLE_KINDS.join('، ')}`, `${where}.kind`, `kind: ${kind}`);
@@ -242,7 +383,7 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
 
   return {
     project: { id, name, tenant, tenant_name: tenantName, isolation: isolation as TopologySpec['project']['isolation'], horizon: horizon as TopologySpec['project']['horizon'], created_at: createdAt },
-    defaults, roles, configs, layout, nodes, edges,
+    defaults, roles, configs, layout, lines, nodes, edges,
   };
 }
 
@@ -313,6 +454,12 @@ function buildNode(n: NodeSpec, ctx: BuildCtx): SNode {
       data.zone = { ...data.zone, department_id: n.department_id };
     }
   }
+  // After expansion every row is numeric; `after-lines` only exists in the
+  // raw spec type. Refuse it loudly here so an unexpanded node can never
+  // slip into the grid engine — and so the union narrows to number below.
+  if (n.row === 'after-lines') {
+    fail(ctx.source, `الصف "after-lines" للعقدة "${n.id}" لم يُحلّ قبل البناء — خطأ داخلي في المترجم`, `nodes.${n.id}.row`, `id: ${n.id}`);
+  }
   const node = {
     id: n.id,
     type,
@@ -345,6 +492,112 @@ function expandEdge(e: EdgeSpec, source: string): Array<[string, string]> {
   return from.flatMap((f) => to.map((t) => [f, t] as [string, string]));
 }
 
+/** Substitute the line index (1-based) for every `{n}` in a template string. */
+const substLine = (s: string, n: number): string => s.replaceAll('{n}', String(n));
+
+/** Is this role an employee role (registry or custom)? Only those take an employee_id. */
+function isEmployeeRole(role: string, ctx: BuildCtx): boolean {
+  return (ctx.customById.get(role) ?? getRole(role))?.employee !== undefined;
+}
+
+/**
+ * One template node → one concrete instance for line n. `{n}` is substituted
+ * in id / label / name / employee_id; `row: "{n}"` becomes the line number;
+ * `at` steps by (n − 1) × step; an omitted employee_id is derived as
+ * `<prefix>.<role>_<n>.v1` for employee roles (via the factory's own
+ * employeeId, so the derivation cannot drift from the factory).
+ */
+function expandTemplateNode(t: LineNodeSpec, n: number, ctx: BuildCtx): NodeSpec {
+  const node: NodeSpec = {
+    id: substLine(t.id, n),
+    role: t.role,
+    ...(t.at !== undefined ? { at: [t.at[0] + (t.step?.[0] ?? 0) * (n - 1), t.at[1] + (t.step?.[1] ?? 0) * (n - 1)] as [number, number] } : {}),
+    ...(t.lane !== undefined ? { lane: t.lane } : {}),
+    ...(t.row !== undefined ? { row: t.row === '{n}' ? n : t.row } : {}),
+    ...(t.label !== undefined ? { label: substLine(t.label, n) } : {}),
+    ...(t.status !== undefined ? { status: t.status } : {}),
+    ...(t.prefix !== undefined ? { prefix: t.prefix } : {}),
+    ...(t.name !== undefined ? { name: substLine(t.name, n) } : {}),
+    ...(t.size !== undefined ? { size: t.size } : {}),
+    ...(t.department_id !== undefined ? { department_id: t.department_id } : {}),
+    ...(t.parent !== undefined ? { parent: t.parent } : {}),
+  };
+  if (t.employee_id !== undefined) {
+    node.employee_id = substLine(t.employee_id, n);
+  } else if (isEmployeeRole(t.role, ctx)) {
+    node.employee_id = employeeId(t.prefix ?? ctx.defaultPrefix, `${t.role}_${n}`);
+  }
+  return node;
+}
+
+/**
+ * The `nodes:` list with every lines anchor replaced by its instances, in
+ * file order, line by line: for line 1 the anchor's template nodes (in
+ * listed order), then line 2, and so on. A plain node's `row:
+ * "after-lines"` resolves to count + 1 here — the expansion is where the
+ * line count is known.
+ */
+function expandNodes(spec: TopologySpec, ctx: BuildCtx): NodeSpec[] {
+  const count = spec.lines?.count ?? 0;
+  const template = new Map((spec.lines?.nodes ?? []).map((t) => [t.id, t]));
+  const out: NodeSpec[] = [];
+  for (const entry of spec.nodes) {
+    if ('lines' in entry) {
+      const ids = entry.lines === true ? [...template.keys()] : entry.lines;
+      for (let n = 1; n <= count; n++) {
+        for (const tid of ids) out.push(expandTemplateNode(template.get(tid)!, n, ctx));
+      }
+    } else {
+      out.push(entry.row === 'after-lines' ? { ...entry, row: count + 1 } : entry);
+    }
+  }
+  return out;
+}
+
+/**
+ * Expand `{n}` endpoints on one side of an edge. A run of consecutive
+ * `{n}` endpoints expands line-major (for line 1 the run's entries, then
+ * line 2…); plain entries pass through in place. A single `{n}` string
+ * becomes the full list of that template node's instances.
+ */
+function expandEndpoints(side: string | string[], count: number, source: string): string[] {
+  const list = Array.isArray(side) ? side : [side];
+  const out: string[] = [];
+  let i = 0;
+  while (i < list.length) {
+    if (!list[i]!.includes('{n}')) { out.push(list[i]!); i++; continue; }
+    if (count < 1) fail(source, `الطرف "${list[i]}" يحمل {n} بلا قسم lines — {n} محجوز لعقد القالب`, 'edges');
+    let j = i;
+    while (j < list.length && list[j]!.includes('{n}')) j++;
+    for (let n = 1; n <= count; n++) {
+      for (let k = i; k < j; k++) out.push(substLine(list[k]!, n));
+    }
+    i = j;
+  }
+  return out;
+}
+
+/**
+ * Two grid nodes in the same cell of the same parent would sit exactly on
+ * top of each other — refuse at once, naming the pair. Runs on the
+ * EXPANDED nodes (Phase 3): template instances and `after-lines` rows only
+ * exist after expansion, so the check moved here from validateSpec. For a
+ * plain spec (no lines) the expanded list is the raw list, so the check
+ * behaves exactly as before.
+ */
+function checkCells(nodes: NodeSpec[], source: string): void {
+  const cells = new Map<string, string>();
+  for (const n of nodes) {
+    if (n.lane === undefined || typeof n.row !== 'number') continue;
+    const key = `${n.parent ?? ''}|${n.lane}|${n.row}`;
+    const prev = cells.get(key);
+    if (prev !== undefined) {
+      fail(source, `العقدتان "${prev}" و"${n.id}" في الخلية نفسها (lane ${n.lane}، row ${n.row}) — خليتان متطابقتان تتداخلان`, `nodes.${n.id}.lane`, `id: ${n.id}`);
+    }
+    cells.set(key, n.id);
+  }
+}
+
 /**
  * Compiles a YAML topology spec to a v2 ProjectFile.
  * Throws DslError (with line + field when known) on any structural problem.
@@ -361,6 +614,17 @@ export function compileTopology(source: string, options: CompileOptions = {}): P
     throw new DslError(`تعذّر تحليل YAML: ${err.message}`, { line, field: 'yaml' });
   }
   const spec = validateSpec(raw, source);
+  return compileSpec(spec, options, source);
+}
+
+/**
+ * Compiles an already-validated topology spec to a v2 ProjectFile — the
+ * same build compileTopology runs after parsing YAML. The preset
+ * (src/presets/portfolio.ts) builds its spec in code and calls this
+ * directly; `source` is only used to look up error lines ('' when the spec
+ * did not come from a file).
+ */
+export function compileSpec(spec: TopologySpec, options: CompileOptions = {}, source = ''): ProjectFile {
   const now = options.now ?? spec.project.created_at ?? new Date().toISOString();
   const customById = new Map((options.customRoles ?? []).map((d) => [d.id, d]));
   const customIds = new Set(spec.roles?.custom ?? []);
@@ -385,9 +649,20 @@ export function compileTopology(source: string, options: CompileOptions = {}): P
       pad: spec.layout?.pad ?? DEFAULT_GRID_PARAMS.pad,
     },
   };
+  // Phase 3: anchors become instances and `{n}` endpoints become id lists;
+  // everything downstream (duplicate / parent / zone / overlap gates) sees
+  // only concrete nodes and edges, exactly as if they were written out.
+  const expandedNodes = expandNodes(spec, ctx);
+  checkCells(expandedNodes, source);
+  const count = spec.lines?.count ?? 0;
+  const expandedEdges = spec.edges.map((e) => ({
+    ...e,
+    from: expandEndpoints(e.from, count, source),
+    to: expandEndpoints(e.to, count, source),
+  }));
   const nodes: SNode[] = [];
   const byId = new Map<string, SNode>();
-  for (const n of spec.nodes) {
+  for (const n of expandedNodes) {
     if (byId.has(n.id)) {
       fail(source, `معرف العقدة "${n.id}" مكرر — كل عقدة تحتاج معرفاً فريداً`, `nodes.${n.id}.id`, `id: ${n.id}`);
     }
@@ -395,7 +670,7 @@ export function compileTopology(source: string, options: CompileOptions = {}): P
     nodes.push(node);
     byId.set(n.id, node);
   }
-  for (const n of spec.nodes) {
+  for (const n of expandedNodes) {
     if (n.parent === undefined) continue;
     const parent = byId.get(n.parent);
     if (!parent) {
@@ -420,7 +695,7 @@ export function compileTopology(source: string, options: CompileOptions = {}): P
     n.zIndex = -1;
   }
   const edges: SEdge[] = [];
-  for (const e of spec.edges) {
+  for (const e of expandedEdges) {
     for (const [s, t] of expandEdge(e, source)) {
       if (!byId.has(s)) fail(source, `مصدر الرابط "${s}" غير موجود بين العقد`, 'edges.from', `from: ${s}`);
       if (!byId.has(t)) fail(source, `هدف الرابط "${t}" غير موجود بين العقد`, 'edges.to', `to: ${t}`);
