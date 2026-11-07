@@ -138,3 +138,142 @@ export function autoLayout(nodes: SNode[], edges: SEdge[]): SNode[] {
     return { ...n, position: { x: Math.round(p.position.x), y: Math.round(p.position.y) }, ...(style ? { style } : {}) };
   });
 }
+
+/* ------------------------------------------------------------------ *
+ * Phase 2 — grid layout engine (lanes / rows, zone auto-sizing, edge
+ * endpoint spreading). Pure and deterministic: same structure + same
+ * parameters → same positions, every time. It does NOT replace
+ * alignNodes / distributeNodes / autoLayout above; it is the engine the
+ * DSL compiler calls so a designer declares structure (lane, row) instead
+ * of hand-computing coordinates. See docs/LAYOUT.md.
+ * ------------------------------------------------------------------ */
+
+/**
+ * The node footprint the grid engine sizes zones with: 200×64.
+ * Provenance: the studio's own placement clamp assumes a 200-wide node
+ * (`factoryPlacement.ts`: `b.w - 200`), and the picture renderer draws
+ * nodes at NODE_W/NODE_H = 200/64. NOTE the older tidy helpers in this
+ * file default to 190×64 (`sizeOf`); the two disagree, and the grid uses
+ * 200 because it is the footprint that reproduces the delivered maps
+ * (v3: 1920+200+40 = 2160, 680+64+40 = 784). Reconciling the two
+ * defaults is a later-phase cleanup, not a silent change here.
+ */
+export const GRID_NODE_W = 200, GRID_NODE_H = 64;
+/** The v3 grid: stage columns 320 apart, rows 170 apart, zone padding 40. */
+export const GRID_STEP_X = 320, GRID_STEP_Y = 170, GRID_PAD = 40;
+/** A stage step must at least fit one node plus the standard gap, or the
+ *  manager gutter (stepX − node width − GAP_X) would go negative. */
+export const GRID_MIN_STEP_X = GRID_NODE_W + GAP_X;
+
+export interface GridParams { stepX: number; stepY: number; pad: number; }
+export const DEFAULT_GRID_PARAMS: GridParams = { stepX: GRID_STEP_X, stepY: GRID_STEP_Y, pad: GRID_PAD };
+
+/**
+ * Grid cell → zone-relative position.
+ *
+ * Lanes are stage columns: lane k ≥ 1 sits at x = stepX × k. Lane 0 is the
+ * manager gutter — the one manager who dispatches to every stage sits left
+ * of the first stage, at x = stepX − node width − GAP_X, so the gap from
+ * the manager's right edge to the first stage column is exactly the
+ * standard GAP_X (320 − 200 − 90 = 30 in the v3 grid). Rows are uniform:
+ * y = stepY × row. The rule is pure arithmetic: no edge traversal, no
+ * dependence on node order.
+ */
+export function gridCellPosition(lane: number, row: number, params: GridParams = DEFAULT_GRID_PARAMS): { x: number; y: number } {
+  const managerX = params.stepX - GRID_NODE_W - GAP_X;
+  if (managerX < 0) {
+    throw new Error(`gridCellPosition: خطوة الأعمدة stepX=${params.stepX} أصغر من ${GRID_MIN_STEP_X} — لا تتسع لعمود المدير (عرض العقدة ${GRID_NODE_W} + الفجوة ${GAP_X})`);
+  }
+  return { x: lane === 0 ? managerX : params.stepX * lane, y: params.stepY * row };
+}
+
+/**
+ * Zone size from its children: the smallest box that contains every child
+ * (at the grid footprint) plus `pad` on the right and bottom. For the v3
+ * department zone this reproduces the manual size exactly (2160×784);
+ * see docs/LAYOUT.md for the v1/v2 deltas, whose manual sizes carry extra
+ * slack no single rule derives.
+ */
+export function zoneSizeFromChildren(
+  children: ReadonlyArray<{ x: number; y: number }>,
+  params: GridParams = DEFAULT_GRID_PARAMS,
+): { w: number; h: number } {
+  if (children.length === 0) throw new Error('zoneSizeFromChildren: لا أبناء لتحجيم المنطقة منهم');
+  return {
+    w: Math.max(...children.map((c) => c.x + GRID_NODE_W)) + params.pad,
+    h: Math.max(...children.map((c) => c.y + GRID_NODE_H)) + params.pad,
+  };
+}
+
+export interface EndpointOffsets { out: number; in: number; }
+
+/** One step of the spread, clamped so a large fan never leaves the node. */
+const spreadOffset = (rank: number, count: number): number =>
+  Math.max(-26, Math.min(26, (rank - (count - 1) / 2) * 4));
+
+/**
+ * Edge-endpoint spreading, ported from the picture renderer's `_spread`
+ * (same rule, same constants). Edges that share a source are ranked by
+ * their target's absolute y; edges that share a target are ranked by
+ * their source's absolute y; ties keep file order (explicit index
+ * tiebreak, so the result does not depend on sort stability). The
+ * returned array is index-aligned with `edges`: entry i holds the
+ * vertical offsets (in node units) to apply to edge i's source endpoint
+ * (`out`) and target endpoint (`in`). This is renderer data — it never
+ * enters the .socroot.json file and never changes a cable's meaning.
+ * NOTE the ±26 clamp: a fan of more than 13 edges shares the extreme
+ * offsets (the manager's 20 dispatch edges collapse to 4 at −26 and 4
+ * at +26); the middle edges still separate.
+ */
+export function edgeEndpointOffsets(nodes: SNode[], edges: SEdge[]): EndpointOffsets[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const absY = (id: string): number => { const n = byId.get(id); return n ? absolute(n, byId).y : 0; };
+  const out: EndpointOffsets[] = edges.map(() => ({ out: 0, in: 0 }));
+  const bySource = new Map<string, number[]>(), byTarget = new Map<string, number[]>();
+  edges.forEach((e, i) => {
+    bySource.set(e.source, [...(bySource.get(e.source) ?? []), i]);
+    byTarget.set(e.target, [...(byTarget.get(e.target) ?? []), i]);
+  });
+  for (const idxs of bySource.values()) {
+    const sorted = [...idxs].sort((a, b) => absY(edges[a]!.target) - absY(edges[b]!.target) || a - b);
+    sorted.forEach((ei, rank) => { out[ei]!.out = spreadOffset(rank, sorted.length); });
+  }
+  for (const idxs of byTarget.values()) {
+    const sorted = [...idxs].sort((a, b) => absY(edges[a]!.source) - absY(edges[b]!.source) || a - b);
+    sorted.forEach((ei, rank) => { out[ei]!.in = spreadOffset(rank, sorted.length); });
+  }
+  return out;
+}
+
+export interface OverlapPair { a: string; b: string; }
+
+/**
+ * Overlapping node pairs, in absolute canvas coordinates. A zone and its
+ * own descendants are containment, not overlap, and are skipped; every
+ * other pair whose boxes intersect is reported (node order, so the result
+ * is deterministic). Studio nodes use `sizeOf`; zones use their style
+ * size (falling back to the factoryPlacement default 360×240).
+ */
+export function findOverlaps(nodes: SNode[]): OverlapPair[] {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const isAncestor = (anc: SNode, desc: SNode): boolean => {
+    let cur = desc.parentId ? byId.get(desc.parentId) : undefined, guard = 0;
+    while (cur && guard++ < 16) { if (cur.id === anc.id) return true; cur = cur.parentId ? byId.get(cur.parentId) : undefined; }
+    return false;
+  };
+  const boxes = nodes.map((n) => {
+    const a = absolute(n, byId);
+    const s = n.data.kind === 'zone'
+      ? { w: num(n.style?.width) ?? 360, h: num(n.style?.height) ?? 240 }
+      : sizeOf(n);
+    return { x: a.x, y: a.y, w: s.w, h: s.h };
+  });
+  const pairs: OverlapPair[] = [];
+  for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+    const a = nodes[i]!, b = nodes[j]!;
+    if (isAncestor(a, b) || isAncestor(b, a)) continue;
+    const A = boxes[i]!, B = boxes[j]!;
+    if (A.x < B.x + B.w && B.x < A.x + A.w && A.y < B.y + B.h && B.y < A.y + A.h) pairs.push({ a: a.id, b: b.id });
+  }
+  return pairs;
+}

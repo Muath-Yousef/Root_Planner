@@ -1,7 +1,10 @@
-# منظومة المؤثرين — محفظة 3 خطوط (v3)، بلغة التصميم التصريحية (المرحلة 1).
+# منظومة المؤثرين — محفظة 3 خطوط (v3)، بلغة التصميم التصريحية (المرحلتان 1 و2).
 # تُترجم عبر src/dsl/compiler.ts إلى examples/influencers_system_v3.socroot.json
 # بايتاً مطابقاً (البصمة ac9f0478…) — انظر tests/dsl-compiler.test.ts.
-# المواضع (at) صريحة في هذه النسخة؛ التخطيط التلقائي يأتي في المرحلة 2.
+# التخطيط (المرحلة 2): أبناء القسم على الشبكة (lane/row) والقسم يُحجَّم
+# تلقائياً منهم؛ العقد العليا (المؤسس، المنسق، القسم، العمود الأيمن،
+# منطقة الويب، القاطع) ما زالت بإحداثيات صريحة at: — تركيب يدوي بلا
+# قاعدة منتظمة (انظر docs/LAYOUT.md لماذا).
 
 project:
   id: proj-influencers-system-v3
@@ -21,34 +24,36 @@ roles: { source: examples/influencer_roles.ts, custom: [collector, content_selec
 
 configs: { model_routing: preset, sources_watchlist: preset, pricing_config: preset }
 
+layout: { step_x: 320, step_y: 170, pad: 40 }
+
 nodes:
   - { id: founder, role: founder, at: [0, 300], label: المؤسس }
   - { id: orch, role: orchestrator, at: [230, 300], label: المنسق, status: PLANNED, prefix: core }
-  - { id: zone_dept, role: zone_line, at: [470, -40], size: [2160, 784], label: dept_influencer_system, status: PLANNED, department_id: dept_influencer_system }
-  - { id: mgr, role: manager, at: [30, 340], label: مدير قطاع المؤثرين, status: PLANNED, parent: zone_dept }
-  - { id: scout, role: scout, at: [320, 0], label: المستطلع, status: PLANNED, parent: zone_dept }
-  - { id: collector, role: collector, at: [320, 170], label: جامع بيانات المؤثرين, parent: zone_dept }
-  - { id: transformer, role: systems_engineer, at: [320, 340], label: مهندس تحويل البيانات, parent: zone_dept }
-  - { id: ctx, role: context, at: [640, 0], label: السياق, status: PLANNED, parent: zone_dept }
-  - { id: custodian, role: knowledge_custodian, at: [640, 170], label: أمين قاعدة البيانات, parent: zone_dept }
-  - { id: eva, role: evaluator, at: [640, 340], label: المقيّم, status: PLANNED, parent: zone_dept }
-  - { id: str, role: strategist, at: [960, 0], label: الاستراتيجي, status: PLANNED, parent: zone_dept }
-  - { id: content_selector_1, role: content_selector, at: [960, 170], label: مختار المحتوى 1, employee_id: inf.content_selector_1.v1, name: Content Selector 1, parent: zone_dept }
-  - { id: creator_1, role: creator, at: [1280, 170], label: صانع المحتوى 1, employee_id: inf.creator_1.v1, name: Creator 1, parent: zone_dept }
-  - { id: drf_1, role: drafter, at: [1600, 170], label: الصائغ 1, status: PLANNED, employee_id: inf.drafter_1.v1, name: Drafter 1, parent: zone_dept }
-  - { id: creator_profile_1, role: l2, at: [1920, 170], label: L2 — ملف صانع المحتوى 1, status: PLANNED, parent: zone_dept }
-  - { id: content_selector_2, role: content_selector, at: [960, 340], label: مختار المحتوى 2, employee_id: inf.content_selector_2.v1, name: Content Selector 2, parent: zone_dept }
-  - { id: creator_2, role: creator, at: [1280, 340], label: صانع المحتوى 2, employee_id: inf.creator_2.v1, name: Creator 2, parent: zone_dept }
-  - { id: drf_2, role: drafter, at: [1600, 340], label: الصائغ 2, status: PLANNED, employee_id: inf.drafter_2.v1, name: Drafter 2, parent: zone_dept }
-  - { id: creator_profile_2, role: l2, at: [1920, 340], label: L2 — ملف صانع المحتوى 2, status: PLANNED, parent: zone_dept }
-  - { id: content_selector_3, role: content_selector, at: [960, 510], label: مختار المحتوى 3, employee_id: inf.content_selector_3.v1, name: Content Selector 3, parent: zone_dept }
-  - { id: creator_3, role: creator, at: [1280, 510], label: صانع المحتوى 3, employee_id: inf.creator_3.v1, name: Creator 3, parent: zone_dept }
-  - { id: drf_3, role: drafter, at: [1600, 510], label: الصائغ 3, status: PLANNED, employee_id: inf.drafter_3.v1, name: Drafter 3, parent: zone_dept }
-  - { id: creator_profile_3, role: l2, at: [1920, 510], label: L2 — ملف صانع المحتوى 3, status: PLANNED, parent: zone_dept }
-  - { id: publisher, role: integration_spec, at: [960, 680], label: الناشر, parent: zone_dept }
-  - { id: compliance, role: compliance, at: [1280, 680], label: مراجع الامتثال والإفصاح, parent: zone_dept }
-  - { id: income_mgr, role: financial_controller, at: [1600, 680], label: مدير مصادر الدخل, parent: zone_dept }
-  - { id: perf_analyst, role: performance_analyst, at: [1920, 680], label: محلل الأداء والدخل, parent: zone_dept }
+  - { id: zone_dept, role: zone_line, at: [470, -40], label: dept_influencer_system, status: PLANNED, department_id: dept_influencer_system }
+  - { id: mgr, role: manager, lane: 0, row: 2, label: مدير قطاع المؤثرين, status: PLANNED, parent: zone_dept }
+  - { id: scout, role: scout, lane: 1, row: 0, label: المستطلع, status: PLANNED, parent: zone_dept }
+  - { id: collector, role: collector, lane: 1, row: 1, label: جامع بيانات المؤثرين, parent: zone_dept }
+  - { id: transformer, role: systems_engineer, lane: 1, row: 2, label: مهندس تحويل البيانات, parent: zone_dept }
+  - { id: ctx, role: context, lane: 2, row: 0, label: السياق, status: PLANNED, parent: zone_dept }
+  - { id: custodian, role: knowledge_custodian, lane: 2, row: 1, label: أمين قاعدة البيانات, parent: zone_dept }
+  - { id: eva, role: evaluator, lane: 2, row: 2, label: المقيّم, status: PLANNED, parent: zone_dept }
+  - { id: str, role: strategist, lane: 3, row: 0, label: الاستراتيجي, status: PLANNED, parent: zone_dept }
+  - { id: content_selector_1, role: content_selector, lane: 3, row: 1, label: مختار المحتوى 1, employee_id: inf.content_selector_1.v1, name: Content Selector 1, parent: zone_dept }
+  - { id: creator_1, role: creator, lane: 4, row: 1, label: صانع المحتوى 1, employee_id: inf.creator_1.v1, name: Creator 1, parent: zone_dept }
+  - { id: drf_1, role: drafter, lane: 5, row: 1, label: الصائغ 1, status: PLANNED, employee_id: inf.drafter_1.v1, name: Drafter 1, parent: zone_dept }
+  - { id: creator_profile_1, role: l2, lane: 6, row: 1, label: L2 — ملف صانع المحتوى 1, status: PLANNED, parent: zone_dept }
+  - { id: content_selector_2, role: content_selector, lane: 3, row: 2, label: مختار المحتوى 2, employee_id: inf.content_selector_2.v1, name: Content Selector 2, parent: zone_dept }
+  - { id: creator_2, role: creator, lane: 4, row: 2, label: صانع المحتوى 2, employee_id: inf.creator_2.v1, name: Creator 2, parent: zone_dept }
+  - { id: drf_2, role: drafter, lane: 5, row: 2, label: الصائغ 2, status: PLANNED, employee_id: inf.drafter_2.v1, name: Drafter 2, parent: zone_dept }
+  - { id: creator_profile_2, role: l2, lane: 6, row: 2, label: L2 — ملف صانع المحتوى 2, status: PLANNED, parent: zone_dept }
+  - { id: content_selector_3, role: content_selector, lane: 3, row: 3, label: مختار المحتوى 3, employee_id: inf.content_selector_3.v1, name: Content Selector 3, parent: zone_dept }
+  - { id: creator_3, role: creator, lane: 4, row: 3, label: صانع المحتوى 3, employee_id: inf.creator_3.v1, name: Creator 3, parent: zone_dept }
+  - { id: drf_3, role: drafter, lane: 5, row: 3, label: الصائغ 3, status: PLANNED, employee_id: inf.drafter_3.v1, name: Drafter 3, parent: zone_dept }
+  - { id: creator_profile_3, role: l2, lane: 6, row: 3, label: L2 — ملف صانع المحتوى 3, status: PLANNED, parent: zone_dept }
+  - { id: publisher, role: integration_spec, lane: 3, row: 4, label: الناشر, parent: zone_dept }
+  - { id: compliance, role: compliance, lane: 4, row: 4, label: مراجع الامتثال والإفصاح, parent: zone_dept }
+  - { id: income_mgr, role: financial_controller, lane: 5, row: 4, label: مدير مصادر الدخل, parent: zone_dept }
+  - { id: perf_analyst, role: performance_analyst, lane: 6, row: 4, label: محلل الأداء والدخل, parent: zone_dept }
   - { id: ssrf, role: ssrf_guard, at: [2760, 0], label: حارس SSRF ووكيل الخروج }
   - { id: l1, role: l1, at: [2760, 170], label: L1 — البيانات الخام, status: PLANNED }
   - { id: l2, role: l2, at: [2760, 340], label: L2 — قاعدة بيانات المؤثرين }

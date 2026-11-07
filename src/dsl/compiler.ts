@@ -2,13 +2,17 @@ import { load } from 'js-yaml';
 import { CABLE_KINDS, getRole, mkEdge } from '../registry';
 import type { RoleDefinition } from '../registry';
 import { makeEmployeeConfig, templateNodeData } from '../engine/employeeFactory';
+import {
+  DEFAULT_GRID_PARAMS, findOverlaps, GRID_MIN_STEP_X, gridCellPosition, zoneSizeFromChildren,
+  type GridParams,
+} from '../engine/layout';
 import { CURRENT_FORMAT_VERSION } from '../schemas/project';
 import type { CableKind, ImplementationStatus, ProjectFile, SEdge, SNode } from '../types';
 import { CONFIG_KEYS, CONFIG_PRESETS, type ConfigKey } from './presets';
-import type { CompileOptions, EdgeSpec, NodeSpec, TopologySpec } from './schema';
+import type { CompileOptions, EdgeSpec, LayoutSpec, NodeSpec, TopologySpec } from './schema';
 
 /**
- * Phase 1 — YAML DSL compiler (YAML → ProjectFile, format v2).
+ * Phases 1–2 — YAML DSL compiler (YAML → ProjectFile, format v2).
  *
  * The compiler is a declarative interpreter over the studio's own factory:
  * registry roles go through templateNodeData, custom roles through
@@ -16,13 +20,17 @@ import type { CompileOptions, EdgeSpec, NodeSpec, TopologySpec } from './schema'
  * mkCustom/mkLine build, edges go through mkEdge, and the file is produced
  * with the same field order the generator uses — so a YAML spec of v3
  * compiles to the delivered v3 file byte-identically (see
- * tests/dsl-compiler.test.ts).
+ * tests/dsl-compiler.test.ts). Phase 2 adds the layout engine: nodes are
+ * placed by `at:` (explicit override) or by `lane:`/`row:` on the grid
+ * (`src/engine/layout.ts`), zones without `size` are sized from their
+ * children, and a final gate refuses overlapping nodes.
  *
  * The compiler does STRUCTURAL validation only (unknown role, unknown node
- * id, bad kind, duplicate id, missing config…) with errors that name the
- * line and the field. Topology validation stays where it belongs: the
- * studio's own checkCable / collectProblems / parseProjectText judge the
- * output — the compiler invents no parallel validator.
+ * id, bad kind, duplicate id, missing config, bad cell, overlap…) with
+ * errors that name the line and the field. Topology validation stays where
+ * it belongs: the studio's own checkCable / collectProblems /
+ * parseProjectText judge the output — the compiler invents no parallel
+ * validator.
  */
 
 export class DslError extends Error {
@@ -70,6 +78,15 @@ function reqPair(obj: Record<string, unknown>, key: string, where: string, sourc
     fail(source, `الحقل "${key}" في ${where} يجب أن يكون زوجاً من الأرقام [x, y]`, `${where}.${key}`);
   }
   return v as [number, number];
+}
+
+function optInt(obj: Record<string, unknown>, key: string, where: string, source: string): number | undefined {
+  const v = obj[key];
+  if (v === undefined) return undefined;
+  if (typeof v !== 'number' || !Number.isInteger(v)) {
+    fail(source, `الحقل "${key}" في ${where} يجب أن يكون عدداً صحيحاً`, `${where}.${key}`);
+  }
+  return v as number;
 }
 
 function asIdList(v: unknown, field: string, where: string, source: string): string[] {
@@ -146,14 +163,27 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
     if (!isRecord(entry)) fail(source, `العقدة في ${where} يجب أن تكون خريطة`, where);
     const nid = reqString(entry, 'id', where, source);
     const role = reqString(entry, 'role', where, source);
-    const at = reqPair(entry, 'at', where, source);
+    const at = entry.at !== undefined ? reqPair(entry, 'at', where, source) : undefined;
+    const lane = optInt(entry, 'lane', where, source);
+    const row = optInt(entry, 'row', where, source);
+    if (at !== undefined && (lane !== undefined || row !== undefined)) {
+      fail(source, `العقدة "${nid}" تحمل at وlane/row معاً — اختر أحدهما`, `${where}.at`, `id: ${nid}`);
+    }
+    if ((lane === undefined) !== (row === undefined)) {
+      fail(source, `العقدة "${nid}": lane وrow معاً أو لا شيء — أحدهما مفقود`, `${where}.lane`, `id: ${nid}`);
+    }
+    if (at === undefined && lane === undefined) {
+      fail(source, `العقدة "${nid}" بلا موضع — أعطها at أو lane/row`, `${where}.at`, `id: ${nid}`);
+    }
+    if (lane !== undefined && lane < 0) fail(source, `العمود lane للعقدة "${nid}" يجب ألا يكون سالباً`, `${where}.lane`, `id: ${nid}`);
+    if (row !== undefined && row < 0) fail(source, `الصف row للعقدة "${nid}" يجب ألا يكون سالباً`, `${where}.row`, `id: ${nid}`);
     const label = optString(entry, 'label', where, source);
     const status = optString(entry, 'status', where, source);
     if (status !== undefined && !(STATUSES as readonly string[]).includes(status)) {
       fail(source, `الحالة "${status}" للعقدة "${nid}" غير معروفة — القيم المقبولة: ${STATUSES.join('، ')}`, `${where}.status`, `id: ${nid}`);
     }
     const node: NodeSpec = {
-      id: nid, role, at, label, status: status as ImplementationStatus | undefined,
+      id: nid, role, at, lane, row, label, status: status as ImplementationStatus | undefined,
       prefix: optString(entry, 'prefix', where, source),
       employee_id: optString(entry, 'employee_id', where, source),
       name: optString(entry, 'name', where, source),
@@ -163,6 +193,32 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
     if (entry.size !== undefined) node.size = reqPair(entry, 'size', where, source);
     return node;
   });
+  // Two grid nodes in the same cell of the same parent would sit exactly
+  // on top of each other — refuse at once, naming the pair.
+  const cells = new Map<string, string>();
+  for (const n of nodes) {
+    if (n.lane === undefined) continue;
+    const key = `${n.parent ?? ''}|${n.lane}|${n.row}`;
+    const prev = cells.get(key);
+    if (prev !== undefined) {
+      fail(source, `العقدتان "${prev}" و"${n.id}" في الخلية نفسها (lane ${n.lane}، row ${n.row}) — خليتان متطابقتان تتداخلان`, `nodes.${n.id}.lane`, `id: ${n.id}`);
+    }
+    cells.set(key, n.id);
+  }
+
+  let layout: LayoutSpec | undefined;
+  if (raw.layout !== undefined) {
+    if (!isRecord(raw.layout)) fail(source, 'قسم "layout" يجب أن يكون خريطة', 'layout');
+    const stepX = optInt(raw.layout, 'step_x', 'layout', source);
+    const stepY = optInt(raw.layout, 'step_y', 'layout', source);
+    const pad = optInt(raw.layout, 'pad', 'layout', source);
+    if (stepX !== undefined && stepX < GRID_MIN_STEP_X) {
+      fail(source, `خطوة الأعمدة step_x=${stepX} أصغر من ${GRID_MIN_STEP_X} — لا تتسع لعمود المدير (عرض العقدة + الفجوة)`, 'layout.step_x', `step_x: ${stepX}`);
+    }
+    if (stepY !== undefined && stepY <= 0) fail(source, 'خطوة الصفوف step_y يجب أن تكون أكبر من 0', 'layout.step_y', `step_y: ${stepY}`);
+    if (pad !== undefined && pad < 0) fail(source, 'الحشوة pad يجب ألا تكون سالبة', 'layout.pad', `pad: ${pad}`);
+    layout = { step_x: stepX, step_y: stepY, pad };
+  }
 
   if (!Array.isArray(raw.edges)) fail(source, 'قسم "edges" مطلوب ويجب أن يكون قائمة (ولو فارغة)', 'edges');
   const edges: EdgeSpec[] = raw.edges.map((entry, i) => {
@@ -186,7 +242,7 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
 
   return {
     project: { id, name, tenant, tenant_name: tenantName, isolation: isolation as TopologySpec['project']['isolation'], horizon: horizon as TopologySpec['project']['horizon'], created_at: createdAt },
-    defaults, roles, configs, nodes, edges,
+    defaults, roles, configs, layout, nodes, edges,
   };
 }
 
@@ -199,6 +255,8 @@ interface BuildCtx {
   defaultPrefix: string;
   customIds: Set<string>;
   customById: Map<string, RoleDefinition>;
+  /** Grid parameters (layout block, or the engine defaults). */
+  grid: GridParams;
 }
 
 function factoryOptions(n: NodeSpec, ctx: BuildCtx): Parameters<typeof makeEmployeeConfig>[1] {
@@ -258,7 +316,9 @@ function buildNode(n: NodeSpec, ctx: BuildCtx): SNode {
   const node = {
     id: n.id,
     type,
-    position: { x: n.at[0], y: n.at[1] },
+    // Explicit `at` wins; otherwise the grid engine places the node from
+    // its lane/row (validateSpec guarantees exactly one of the two).
+    position: n.at !== undefined ? { x: n.at[0], y: n.at[1] } : gridCellPosition(n.lane!, n.row!, ctx.grid),
     data,
   } as SNode;
   if (isZone && n.size !== undefined) {
@@ -319,6 +379,11 @@ export function compileTopology(source: string, options: CompileOptions = {}): P
     managerId: spec.defaults?.manager ?? 'unassigned.manager.v1',
     defaultPrefix: spec.defaults?.prefix ?? 'inf',
     customIds, customById,
+    grid: {
+      stepX: spec.layout?.step_x ?? DEFAULT_GRID_PARAMS.stepX,
+      stepY: spec.layout?.step_y ?? DEFAULT_GRID_PARAMS.stepY,
+      pad: spec.layout?.pad ?? DEFAULT_GRID_PARAMS.pad,
+    },
   };
   const nodes: SNode[] = [];
   const byId = new Map<string, SNode>();
@@ -340,6 +405,20 @@ export function compileTopology(source: string, options: CompileOptions = {}): P
       fail(source, `أب العقدة "${n.id}" هو "${n.parent}" ودوره ${parent.data.role} — الأب يجب أن يكون عقدة منطقة`, `nodes.${n.id}.parent`, `id: ${n.id}`);
     }
   }
+  // Zones without an explicit `size` are sized from their children (the
+  // engine rule); a zone with neither size nor children cannot be sized.
+  // Explicit `size` (buildNode) always wins — e.g. zone_web in v3, whose
+  // hand-set 260×200 the rule does not derive (see docs/LAYOUT.md).
+  for (const n of nodes) {
+    if (n.type !== 'zone' || n.style !== undefined) continue;
+    const kids = nodes.filter((k) => k.parentId === n.id);
+    if (kids.length === 0) {
+      fail(source, `المنطقة "${n.id}" بلا size وبلا أبناء — أعطها size أو أبناء لتحجيمها منهم`, `nodes.${n.id}.size`, `id: ${n.id}`);
+    }
+    const size = zoneSizeFromChildren(kids.map((k) => k.position), ctx.grid);
+    n.style = { width: size.w, height: size.h };
+    n.zIndex = -1;
+  }
   const edges: SEdge[] = [];
   for (const e of spec.edges) {
     for (const [s, t] of expandEdge(e, source)) {
@@ -347,6 +426,14 @@ export function compileTopology(source: string, options: CompileOptions = {}): P
       if (!byId.has(t)) fail(source, `هدف الرابط "${t}" غير موجود بين العقد`, 'edges.to', `to: ${t}`);
       edges.push(mkEdge(s, t, e.kind, e.access));
     }
+  }
+  // Final layout gate, after every structural error has had its chance to
+  // fire first: no two nodes may overlap on the canvas (a zone containing
+  // its children is containment, not overlap — see findOverlaps).
+  const overlaps = findOverlaps(nodes);
+  if (overlaps.length > 0) {
+    const first = overlaps[0]!;
+    fail(source, `العقدتان "${first.a}" و"${first.b}" تتداخلان — غيّر موضع إحداهما`, `nodes.${first.a}`, `id: ${first.a}`);
   }
   const configEntries = spec.configs !== undefined
     ? (Object.entries(spec.configs) as Array<[ConfigKey, string]>)

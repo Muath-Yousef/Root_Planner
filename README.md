@@ -27,6 +27,7 @@ npm run dev
 - **Sync & Batch Notes:** [`docs/SYNC_NOTES.md`](./docs/SYNC_NOTES.md) — detailed architecture decisions across batches 1 through 8.
 - **Reference Gaps & Disambiguations:** [`docs/REFERENCE_GAPS.md`](./docs/REFERENCE_GAPS.md) — canonical handling of ambiguous bands and role source derivations.
 - **Declarative Design Language (DSL):** [`docs/DSL.md`](./docs/DSL.md) — describe a topology in YAML and compile it to a v2 `.socroot.json` file (Phase 1); v3 as the first example.
+- **Automatic Layout Engine:** [`docs/LAYOUT.md`](./docs/LAYOUT.md) — lanes/grid, zone auto-sizing, edge-endpoint spreading (Phase 2); the v3 example now builds its zone children from the grid.
 
 ## Architectural Highlights
 
