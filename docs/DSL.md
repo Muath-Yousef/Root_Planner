@@ -205,7 +205,12 @@ nodes:
 npm run cli -- validate examples/influencers_system_v3.socroot.json
 npm run cli -- build examples/influencers_system_v3.yaml --out /tmp/v3.socroot.json
 npm run cli -- export examples/influencers_system_v3.yaml --out /tmp/v3-copy.socroot.json
+npm run cli -- roles register ./my-role.ts
 ```
+
+- `roles register <file>`: يسجّل دوراً (أدواراً) من ملف `RoleDefinition`
+  في السجل (نسخ + استيراد + `registerRoles` + تحقق `getRole`)؛
+  التفصيل في `docs/ROLES.md`.
 
 - `validate <file>`: يقبل `.socroot.json` أو YAML؛ خروج 0 عند 0 أخطاء
   (التحذيرات — مثل 21 تحذير `ORG-003` على v3 — لا تُفشل).

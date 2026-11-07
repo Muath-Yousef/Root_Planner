@@ -17,9 +17,10 @@ npm run build
 # 4. Start local development server
 npm run dev
 
-# 5. Headless CLI (Phase 4) — validate, build and export without the UI
+# 5. Headless CLI (Phase 4) — validate, build, export and register roles without the UI
 npm run cli -- validate examples/influencers_system_v3.socroot.json
 npm run cli -- build examples/influencers_system_v3.yaml --out /tmp/v3.socroot.json
+npm run cli -- roles register ./my-role.ts
 ```
 
 ## Documentation & Auditing

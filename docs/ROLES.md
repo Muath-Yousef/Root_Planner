@@ -48,9 +48,54 @@ employee`)، بينما `templateNodeData` يصدر `status` قبل `networkMode
 
 ## كيف يُضاف دور جديد
 
+الطريقة الموصى بها — الأمر `roles register` (المرحلة 4ب). هو ينفذ
+الخطوتين اليدويتين أدناه تلقائياً، بعد التحقق من التعريف والتحقق أن
+`getRole` يحل الدور الجديد في عملية جديدة:
+
+```bash
+npm run cli -- roles register ./my-role.ts
+# ✓ سُجّل الدور my_role — src/registry/roles/my-role.ts
+```
+
+ملف الدور TypeScript يصدّر افتراضياً `RoleDefinition` واحدة أو قائمة
+منها، بنفس شكل `src/registry/roles/influencer.ts` (عقد `employee`
+كامل لأدوار الموظفين: المهمة، النطاق، الاستثناءات، الأدوات، السياسات،
+التشغيل، موجّه الهوية، المهارات، بطاقة التقييم). مثال — دور حارس صغير:
+
+```ts
+export default [
+  {
+    id: 'greeter', kind: 'guard', category: 'Guards',
+    label: { en: 'Greeter', ar: 'المُرحِّب' },
+    description: { en: 'Greets visitors at the gate.', ar: 'يرحّب بالزوار عند البوابة.' },
+    architecture_horizon: 'TRANSITIONAL', implementation_status: 'PLANNED',
+    inspector: ['identity'], network: 'internal',
+  },
+];
+```
+
+ما يفعله الأمر، بالترتيب، وما يرفضه:
+
+1. يحمّل الملف ويتحقق من التعريفات: الحقول المطلوبة (`id` بصيغة
+   الاستوديو، `kind`، `category`، `label` و`description` بزوجيهما
+   اللغويين، `architecture_horizon`، `implementation_status`،
+   `inspector`)، وعقد `employee` الكامل لأدوار الموظفين، وتفرّد الـ
+   `id` داخل الملف. أي نقص يرفض بخطأ عربي يسمّي الحقل.
+2. يرفض تعريفاً متعارضاً مع `id` مسجل أصلاً — إلا حين يطابق التعريف
+   المسجل تماماً (إعادة تسجيل متماثلة تُقبل ولا تغيّر شيئاً).
+3. ينسخ الملف إلى `src/registry/roles/<basename>.ts` (إن كان الملف
+   مثبتاً أصلاً بمحتوى متماثل يُتخطى النسخ؛ وإن وُجد ملف بنفس الاسم
+   بمحتوى مختلف يُرفض).
+4. يضيف الاستيراد واستدعاء `registerRoles(...)` إلى
+   `src/registry/index.ts` — بلا تغيير إن كانا موجودين أصلاً — ولا
+   يمس أي ملف آخر.
+5. يتحقق في عملية جديدة أن `getRole` يحل كل دور جديد؛ وإن فشل
+   التحقق تراجع عن النسخ وتعديل `index.ts` ثم أبلغ بالخطأ.
+
+الخطوتان اليدويتان اللتان يؤتمتهما الأمر (للفهم، أو عند تعذّر تشغيله):
+
 1. أنشئ ملف `RoleDefinition` في `src/registry/roles/` (انسخ بنية
-   `influencer.ts` — عقد `employee` كامل: المهمة، النطاق، الاستثناءات،
-   الأدوات، السياسات، التشغيل، موجّه الهوية، المهارات، بطاقة التقييم).
+   `influencer.ts`).
 2. سجّله في `src/registry/index.ts`: استيراد + `registerRoles(...)`.
 3. شغّل الاختبارات (`npm test`) — اختبار `schemas.test.ts` يتحقق أن كل
    دور موظف يولّد عقداً وبياناً (manifest) يطابقان المخططين، واختبار
@@ -100,6 +145,7 @@ employee`)، بينما `templateNodeData` يصدر `status` قبل `networkMode
 
 | الأمر | ماذا يفعل |
 | --- | --- |
+| `roles register <file>` | يسجّل دوراً (أدواراً) من ملف `RoleDefinition` (TypeScript، تصدير افتراضي): يتحقق من التعريف، ينسخه إلى `src/registry/roles/`، يضيف الاستيراد و`registerRoles` إلى `src/registry/index.ts` بلا تكرار، ثم يتحقق أن `getRole` يحل الدور الجديد؛ يرفض التعريف الناقص والـ `id` المتعارض بخطأ عربي |
 | `validate <file>` | يتحقق من `.socroot.json` أو YAML بـ `parseProjectText` و`checkCable` و`collectProblems`؛ خروج 0 عند 0 أخطاء (التحذيرات لا تُفشل) |
 | `build <spec.yaml> [--out <file>] [--now <iso>]` | يترجم YAML إلى `.socroot.json`؛ حتمي حين يكون `created_at` مثبّتاً في المواصفة أو حين يُمرَّر `--now` |
 | `export <file> --out <file>` | يكتب نسخة قانونية موثقة من مشروع سليم (JSON أو YAML) إلى المسار المختار؛ يرفض مشروعاً فاشل التحقق |

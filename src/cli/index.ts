@@ -1,5 +1,7 @@
 #!/usr/bin/env node
+import * as path from 'node:path';
 import { buildFile, exportFile, validateFile } from './commands';
+import { registerRolesFile } from './roles';
 
 /**
  * Phase 4 — headless CLI entry (`npm run cli -- <command> …`).
@@ -7,6 +9,7 @@ import { buildFile, exportFile, validateFile } from './commands';
  *   validate <file>                 تحقق من .socroot.json أو YAML بأدوات الاستوديو نفسها
  *   build <spec.yaml> [--out <f>] [--now <iso>]   ترجمة YAML إلى .socroot.json حتمياً
  *   export <file> --out <file>      نسخة قانونية موثقة من مشروع سليم إلى مسار مختار
+ *   roles register <file>           تسجيل دور (أدوار) من ملف RoleDefinition (المرحلة 4ب)
  *
  * Exit code 0 on success, 1 on any failure. No browser, no UI.
  * Arabic-first messages; technical identifiers stay in English.
@@ -19,6 +22,7 @@ const USAGE = `socroot-cli — واجهة سطر أوامر استوديو Root 
   npm run cli -- build <spec.yaml> [--out <file>] [--now <iso>]
                                                   ترجمة مواصفة YAML إلى .socroot.json
   npm run cli -- export <file> --out <file>       تصدير نسخة قانونية من مشروع سليم
+  npm run cli -- roles register <file>            تسجيل دور (أدوار) من ملف RoleDefinition
 
 الخيارات:
   --out <file>   مسار الخرج (build: افتراضياً بجانب المواصفة بالامتداد .socroot.json؛ export: مطلوب)
@@ -29,6 +33,7 @@ const USAGE = `socroot-cli — واجهة سطر أوامر استوديو Root 
   npm run cli -- validate examples/influencers_system_v3.socroot.json
   npm run cli -- build examples/influencers_system_v3.yaml --out /tmp/v3.socroot.json
   npm run cli -- export examples/influencers_system_v3.yaml --out /tmp/v3-copy.socroot.json
+  npm run cli -- roles register ./my-role.ts
 `;
 
 function die(message: string): never {
@@ -65,6 +70,18 @@ async function main(): Promise<void> {
     return;
   }
   const flags = parseFlags(rest);
+  if (cmd === 'roles') {
+    const [sub, ...subRest] = flags.positional;
+    if (sub !== 'register') die(`أمر roles غير معروف: ${sub ?? '—'} — المتاح: roles register <file> — انظر --help`);
+    if (flags.out !== undefined || flags.now !== undefined) die('أمر roles register لا يقبل خيارات --out أو --now — انظر --help');
+    const file = subRest[0];
+    if (file === undefined) die('أمر roles register يحتاج ملفاً — انظر --help');
+    if (subRest.length > 1) die(`أمر roles register يقبل ملفاً واحداً — أُعطي: ${subRest.join('، ')}`);
+    const result = await registerRolesFile(file);
+    const rel = path.relative(process.cwd(), result.dest);
+    console.log(`✓ سُجّل ${result.ids.length === 1 ? 'الدور' : 'الأدوار'} ${result.ids.join('، ')} — ${rel}${result.indexChanged || result.copied ? '' : ' (كان مسجلاً أصلاً)'}`);
+    return;
+  }
   const input = flags.positional[0];
   if (input === undefined) die(`أمر ${cmd} يحتاج ملفاً — انظر --help`);
   if (flags.positional.length > 1) die(`أمر ${cmd} يقبل ملفاً واحداً — أُعطي: ${flags.positional.join('، ')}`);
