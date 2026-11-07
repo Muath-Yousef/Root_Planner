@@ -132,7 +132,7 @@ export function buildPortfolioSpec(options: PortfolioOptions = {}): TopologySpec
     edges: [
       { from: 'founder', to: 'orch', kind: 'OBJECTIVE_ROUTE' },
       { from: 'orch', to: 'mgr', kind: 'OBJECTIVE_ROUTE' },
-      { from: 'mgr', to: ['scout', 'collector', 'transformer', 'ctx', 'custodian', 'eva', 'str', 'content_selector_{n}', 'creator_{n}', 'drf_{n}', 'publisher', 'compliance', 'income_mgr', 'perf_analyst'], kind: 'TASK_DISPATCH_RESULT' },
+      { from: 'mgr', dispatch: ['department', 'line'], kind: 'TASK_DISPATCH_RESULT' },
       { from: 'mgr', to: 'founder', kind: 'ESCALATION_PATH' },
       { from: 'scout', to: 'ssrf', kind: 'EGRESS_NETWORK' },
       { from: 'ssrf', to: 'web', kind: 'EGRESS_NETWORK' },
