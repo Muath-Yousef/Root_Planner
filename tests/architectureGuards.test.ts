@@ -1,7 +1,5 @@
 import { describe, it, expect } from 'vitest';
-// @ts-expect-error node builtins in client tsconfig
 import fs from 'node:fs';
-// @ts-expect-error node builtins in client tsconfig
 import path from 'node:path';
 
 function walkDir(dir: string, extensions: string[]): string[] {

@@ -36,6 +36,8 @@ export function TopControlBar({ onHome }: { onHome: () => void }) {
   const setCommandPaletteOpen = useStudio((s) => s.setCommandPaletteOpen);
   const setConfigEditorModalOpen = useStudio((s) => s.setConfigEditorModalOpen);
   const setHelpSheetOpen = useStudio((s) => s.setHelpSheetOpen);
+  const setMcpConsoleModalOpen = useStudio((s) => s.setMcpConsoleModalOpen);
+  const setAiArchitectModalOpen = useStudio((s) => s.setAiArchitectModalOpen);
 
   const problems = useProblems();
   const errors = errorCount(problems);
@@ -126,6 +128,14 @@ export function TopControlBar({ onHome }: { onHome: () => void }) {
             <button onClick={() => setConfigEditorModalOpen(true)} className={btn} title={tr('top.title.configs')} aria-label={tr('top.configs')}>
               <span>⚙</span>
               {!isMedium && <span>{tr('top.configs')}</span>}
+            </button>
+            <button onClick={() => setMcpConsoleModalOpen(true)} className="rounded bg-emerald-950 px-2 py-1 text-xs font-semibold text-emerald-300 hover:bg-emerald-900 border border-emerald-800 shadow-xs flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-emerald-500" title="Model Context Protocol (MCP) Console" aria-label="MCP Console">
+              <span>📡</span>
+              {!isMedium && <span>MCP</span>}
+            </button>
+            <button onClick={() => setAiArchitectModalOpen(true)} className="rounded bg-indigo-950 px-2 py-1 text-xs font-semibold text-indigo-300 hover:bg-indigo-900 border border-indigo-800 shadow-xs flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-indigo-500" title="Gemini AI Organization Architect" aria-label="AI Architect">
+              <span>✨</span>
+              {!isMedium && <span>AI Architect</span>}
             </button>
           </>
         )}

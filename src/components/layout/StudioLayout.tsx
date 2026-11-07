@@ -26,6 +26,8 @@ const CommandPaletteModal = lazy(() => import('../modals/CommandPaletteModal').t
 const ComponentInfoModal = lazy(() => import('../modals/ComponentInfoModal').then((m) => ({ default: m.ComponentInfoModal })));
 const CableDetailModal = lazy(() => import('../modals/CableDetailModal').then((m) => ({ default: m.CableDetailModal })));
 const ConfigEditorModal = lazy(() => import('../modals/ConfigEditorModal').then((m) => ({ default: m.ConfigEditorModal })));
+const McpConsoleModal = lazy(() => import('../modals/McpConsoleModal').then((m) => ({ default: m.McpConsoleModal })));
+const AiArchitectModal = lazy(() => import('../modals/AiArchitectModal').then((m) => ({ default: m.AiArchitectModal })));
 const GuidedTour = lazy(() => import('../guidance/GuidedTour').then((m) => ({ default: m.GuidedTour })));
 const HelpSheet = lazy(() => import('../guidance/HelpSheet').then((m) => ({ default: m.HelpSheet })));
 
@@ -50,6 +52,10 @@ export function StudioLayout({ onHome }: { onHome: () => void }) {
   const infoModalRoleId = useStudio((s) => s.infoModalRoleId);
   const selectedCableEdgeId = useStudio((s) => s.selectedCableEdgeId);
   const configEditorModalOpen = useStudio((s) => s.configEditorModalOpen);
+  const mcpConsoleModalOpen = useStudio((s) => s.mcpConsoleModalOpen);
+  const setMcpConsoleModalOpen = useStudio((s) => s.setMcpConsoleModalOpen);
+  const aiArchitectModalOpen = useStudio((s) => s.aiArchitectModalOpen);
+  const setAiArchitectModalOpen = useStudio((s) => s.setAiArchitectModalOpen);
   const saved = useAutosave();
   const tr = useT();
 
@@ -217,6 +223,8 @@ export function StudioLayout({ onHome }: { onHome: () => void }) {
           {infoModalRoleId && <ComponentInfoModal />}
           {selectedCableEdgeId && <CableDetailModal />}
           {configEditorModalOpen && <ConfigEditorModal />}
+          {mcpConsoleModalOpen && <McpConsoleModal isOpen={mcpConsoleModalOpen} onClose={() => setMcpConsoleModalOpen(false)} />}
+          {aiArchitectModalOpen && <AiArchitectModal isOpen={aiArchitectModalOpen} onClose={() => setAiArchitectModalOpen(false)} />}
         </Suspense>
       </div>
     </ReactFlowProvider>

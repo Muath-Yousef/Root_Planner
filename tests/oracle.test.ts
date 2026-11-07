@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
-// @ts-expect-error node builtins in client tsconfig
 import fs from 'node:fs';
-// @ts-expect-error node builtins in client tsconfig
 import path from 'node:path';
-// @ts-expect-error node builtins in client tsconfig
 import { execSync } from 'node:child_process';
 import { buildBundle } from '../src/engine/bundleExporter';
 import { buildReferenceTopology } from '../src/presets/referenceTopology';
@@ -12,7 +9,6 @@ import { createProject } from '../src/presets/startTemplates';
 import { parseProjectText, serializeProject } from '../src/persistence/projectIO';
 import { PEP_BEGIN, PEP_END, PEP_BLOCK } from '../src/engine/generators';
 
-// @ts-expect-error node builtins in client tsconfig
 const REPO_ROOT = typeof __dirname !== 'undefined' ? path.resolve(__dirname, '..') : '.';
 const MASTER_REF_PATH = path.join(REPO_ROOT, 'MASTER_REFERENCE_v1.1_fea52b40.md');
 

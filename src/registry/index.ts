@@ -55,6 +55,12 @@ export function getRoleHelp(def: RoleDefinition) {
   };
 }
 
-// Adding a role = adding one file (or one entry) under ./roles. Nothing else is edited.
-const modules = import.meta.glob<{ default: RoleDefinition | RoleDefinition[] }>('./roles/*.ts', { eager: true });
-for (const m of Object.values(modules)) registerRoles(m.default);
+import commandRoles from './roles/command';
+import employeeRoles from './roles/employees';
+import infraRoles from './roles/infrastructure';
+import zoneRoles from './roles/zones';
+
+registerRoles(commandRoles);
+registerRoles(employeeRoles);
+registerRoles(infraRoles);
+registerRoles(zoneRoles);

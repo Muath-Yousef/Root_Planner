@@ -129,6 +129,10 @@ interface S {
   setKillModalOpen: (open: boolean) => void;
   commandPaletteOpen: boolean;
   setCommandPaletteOpen: (open: boolean) => void;
+  mcpConsoleModalOpen: boolean;
+  setMcpConsoleModalOpen: (open: boolean) => void;
+  aiArchitectModalOpen: boolean;
+  setAiArchitectModalOpen: (open: boolean) => void;
 
   killSwitch: KillSwitchManager;
   auditLogger: AuditLogger;
@@ -274,6 +278,8 @@ export const useStudio = create<S>()(immer((set, get) => {
     exportModalOpen: false,
     killModalOpen: false,
     commandPaletteOpen: false,
+    mcpConsoleModalOpen: false,
+    aiArchitectModalOpen: false,
     killSwitch: studioKillSwitch,
     auditLogger: studioAuditLogger,
     budgets: {
@@ -335,6 +341,8 @@ export const useStudio = create<S>()(immer((set, get) => {
     setExportModalOpen: (open) => set((s) => { s.exportModalOpen = open; }),
     setKillModalOpen: (open) => set((s) => { s.killModalOpen = open; }),
     setCommandPaletteOpen: (open) => set((s) => { s.commandPaletteOpen = open; }),
+    setMcpConsoleModalOpen: (open) => set((s) => { s.mcpConsoleModalOpen = open; }),
+    setAiArchitectModalOpen: (open) => set((s) => { s.aiArchitectModalOpen = open; }),
 
     setDepartmentBudget: (dept, daily_cap_usd) => set((s) => {
       s.budgets[dept] = { daily_cap_usd, spent_usd: s.budgets[dept]?.spent_usd ?? '0.00' };
