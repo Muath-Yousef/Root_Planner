@@ -1,0 +1,95 @@
+# منظومة المؤثرين — محفظة 3 خطوط (v3)، بلغة التصميم التصريحية (المرحلة 1).
+# تُترجم عبر src/dsl/compiler.ts إلى examples/influencers_system_v3.socroot.json
+# بايتاً مطابقاً (البصمة ac9f0478…) — انظر tests/dsl-compiler.test.ts.
+# المواضع (at) صريحة في هذه النسخة؛ التخطيط التلقائي يأتي في المرحلة 2.
+
+project:
+  id: proj-influencers-system-v3
+  name: منظومة المؤثرين (v3)
+  tenant: socroot-core
+  tenant_name: Sovereign Core
+  isolation: logical_rls
+  horizon: TRANSITIONAL
+  created_at: '2026-11-07T06:19:00.000Z'
+
+defaults:
+  department: dept_influencer_system
+  manager: inf.manager.v1
+  prefix: inf
+
+roles: { source: examples/influencer_roles.ts, custom: [collector, content_selector, creator] }
+
+configs: { model_routing: preset, sources_watchlist: preset, pricing_config: preset }
+
+nodes:
+  - { id: founder, role: founder, at: [0, 300], label: المؤسس }
+  - { id: orch, role: orchestrator, at: [230, 300], label: المنسق, status: PLANNED, prefix: core }
+  - { id: zone_dept, role: zone_line, at: [470, -40], size: [2160, 784], label: dept_influencer_system, status: PLANNED, department_id: dept_influencer_system }
+  - { id: mgr, role: manager, at: [30, 340], label: مدير قطاع المؤثرين, status: PLANNED, parent: zone_dept }
+  - { id: scout, role: scout, at: [320, 0], label: المستطلع, status: PLANNED, parent: zone_dept }
+  - { id: collector, role: collector, at: [320, 170], label: جامع بيانات المؤثرين, parent: zone_dept }
+  - { id: transformer, role: systems_engineer, at: [320, 340], label: مهندس تحويل البيانات, parent: zone_dept }
+  - { id: ctx, role: context, at: [640, 0], label: السياق, status: PLANNED, parent: zone_dept }
+  - { id: custodian, role: knowledge_custodian, at: [640, 170], label: أمين قاعدة البيانات, parent: zone_dept }
+  - { id: eva, role: evaluator, at: [640, 340], label: المقيّم, status: PLANNED, parent: zone_dept }
+  - { id: str, role: strategist, at: [960, 0], label: الاستراتيجي, status: PLANNED, parent: zone_dept }
+  - { id: content_selector_1, role: content_selector, at: [960, 170], label: مختار المحتوى 1, employee_id: inf.content_selector_1.v1, name: Content Selector 1, parent: zone_dept }
+  - { id: creator_1, role: creator, at: [1280, 170], label: صانع المحتوى 1, employee_id: inf.creator_1.v1, name: Creator 1, parent: zone_dept }
+  - { id: drf_1, role: drafter, at: [1600, 170], label: الصائغ 1, status: PLANNED, employee_id: inf.drafter_1.v1, name: Drafter 1, parent: zone_dept }
+  - { id: creator_profile_1, role: l2, at: [1920, 170], label: L2 — ملف صانع المحتوى 1, status: PLANNED, parent: zone_dept }
+  - { id: content_selector_2, role: content_selector, at: [960, 340], label: مختار المحتوى 2, employee_id: inf.content_selector_2.v1, name: Content Selector 2, parent: zone_dept }
+  - { id: creator_2, role: creator, at: [1280, 340], label: صانع المحتوى 2, employee_id: inf.creator_2.v1, name: Creator 2, parent: zone_dept }
+  - { id: drf_2, role: drafter, at: [1600, 340], label: الصائغ 2, status: PLANNED, employee_id: inf.drafter_2.v1, name: Drafter 2, parent: zone_dept }
+  - { id: creator_profile_2, role: l2, at: [1920, 340], label: L2 — ملف صانع المحتوى 2, status: PLANNED, parent: zone_dept }
+  - { id: content_selector_3, role: content_selector, at: [960, 510], label: مختار المحتوى 3, employee_id: inf.content_selector_3.v1, name: Content Selector 3, parent: zone_dept }
+  - { id: creator_3, role: creator, at: [1280, 510], label: صانع المحتوى 3, employee_id: inf.creator_3.v1, name: Creator 3, parent: zone_dept }
+  - { id: drf_3, role: drafter, at: [1600, 510], label: الصائغ 3, status: PLANNED, employee_id: inf.drafter_3.v1, name: Drafter 3, parent: zone_dept }
+  - { id: creator_profile_3, role: l2, at: [1920, 510], label: L2 — ملف صانع المحتوى 3, status: PLANNED, parent: zone_dept }
+  - { id: publisher, role: integration_spec, at: [960, 680], label: الناشر, parent: zone_dept }
+  - { id: compliance, role: compliance, at: [1280, 680], label: مراجع الامتثال والإفصاح, parent: zone_dept }
+  - { id: income_mgr, role: financial_controller, at: [1600, 680], label: مدير مصادر الدخل, parent: zone_dept }
+  - { id: perf_analyst, role: performance_analyst, at: [1920, 680], label: محلل الأداء والدخل, parent: zone_dept }
+  - { id: ssrf, role: ssrf_guard, at: [2760, 0], label: حارس SSRF ووكيل الخروج }
+  - { id: l1, role: l1, at: [2760, 170], label: L1 — البيانات الخام, status: PLANNED }
+  - { id: l2, role: l2, at: [2760, 340], label: L2 — قاعدة بيانات المؤثرين }
+  - { id: l3, role: l3, at: [2760, 510], label: L3 — الذاكرة الدلالية, status: PLANNED }
+  - { id: income_register_1, role: l2, at: [2760, 680], label: L2 — سجل مصادر الدخل 1, status: PLANNED }
+  - { id: income_register_2, role: l2, at: [2760, 850], label: L2 — سجل مصادر الدخل 2, status: PLANNED }
+  - { id: income_register_3, role: l2, at: [2760, 1020], label: L2 — سجل مصادر الدخل 3, status: PLANNED }
+  - { id: pe, role: policy_engine, at: [2760, 1190], label: محرك السياسات }
+  - { id: bg, role: budget_guard, at: [2760, 1360], label: حارس الميزانية }
+  - { id: zone_web, role: zone_untrusted, at: [3020, -30], size: [260, 200], label: العالم غير الموثوق }
+  - { id: web, role: external, at: [40, 70], label: Instagram, status: PLANNED, parent: zone_web }
+  - { id: kill, role: kill_switch, at: [470, 950], label: قاطع الطوارئ }
+
+edges:
+  - { from: founder, to: orch, kind: OBJECTIVE_ROUTE }
+  - { from: orch, to: mgr, kind: OBJECTIVE_ROUTE }
+  - { from: mgr, to: [scout, collector, transformer, ctx, custodian, eva, str, content_selector_1, creator_1, drf_1, content_selector_2, creator_2, drf_2, content_selector_3, creator_3, drf_3, publisher, compliance, income_mgr, perf_analyst], kind: TASK_DISPATCH_RESULT }
+  - { from: mgr, to: founder, kind: ESCALATION_PATH }
+  - { from: scout, to: ssrf, kind: EGRESS_NETWORK }
+  - { from: ssrf, to: web, kind: EGRESS_NETWORK }
+  - { from: publisher, to: ssrf, kind: EGRESS_NETWORK }
+  - { from: scout, to: l1, kind: MEMORY_BUS, access: write }
+  - { from: collector, to: l1, kind: MEMORY_BUS, access: write }
+  - { from: transformer, to: l1, kind: MEMORY_BUS, access: read }
+  - { from: transformer, to: l2, kind: MEMORY_BUS, access: write }
+  - { from: transformer, to: [income_register_1, income_register_2, income_register_3], kind: MEMORY_BUS, access: write }
+  - { from: custodian, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: custodian, to: l3, kind: MEMORY_BUS, access: write }
+  - { from: str, to: [creator_profile_1, creator_profile_2, creator_profile_3], kind: MEMORY_BUS, access: write }
+  - { from: [drf_1, drf_2, drf_3], to: [creator_profile_1, creator_profile_2, creator_profile_3], kind: MEMORY_BUS, access: read }
+  - { from: eva, to: [creator_profile_1, creator_profile_2, creator_profile_3], kind: MEMORY_BUS, access: read }
+  - { from: compliance, to: [creator_profile_1, creator_profile_2, creator_profile_3], kind: MEMORY_BUS, access: read }
+  - { from: perf_analyst, to: [creator_profile_1, creator_profile_2, creator_profile_3], kind: MEMORY_BUS, access: read }
+  - { from: eva, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: compliance, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: income_mgr, to: [income_register_1, income_register_2, income_register_3], kind: MEMORY_BUS, access: read }
+  - { from: income_mgr, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: perf_analyst, to: [income_register_1, income_register_2, income_register_3], kind: MEMORY_BUS, access: read }
+  - { from: perf_analyst, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: ctx, to: l3, kind: MEMORY_BUS, access: read }
+  - { from: str, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: kill, to: mgr, kind: KILL_PLANE_SIGNAL }
+  - { from: kill, to: publisher, kind: KILL_PLANE_SIGNAL }
+  - { from: kill, to: [creator_1, creator_2, creator_3], kind: KILL_PLANE_SIGNAL }

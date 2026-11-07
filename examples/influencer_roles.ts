@@ -20,7 +20,13 @@
  *
  * Mirror of the CUSTOM_ROLES in tests/influencers-v2-build.test.ts — a test
  * there asserts deep equality, so the two copies cannot drift silently.
+ *
+ * NOTE (Phase 1): the type import below resolves once this file is installed
+ * under src/registry/roles/ (where ../definitions is correct). While the file
+ * lives in examples/ the import does not resolve, so @ts-ignore keeps
+ * `tsc --noEmit` green; it is a no-op once installed.
  */
+// @ts-ignore — resolves to src/registry/definitions once installed (see NOTE above).
 import type { RoleDefinition } from '../definitions';
 
 const sk = (name: string, title: string, rules: string[]) => ({ name, body: `---\nname: ${name.replace('.md', '')}\nscope: ${title}\n---\n# ${title}\n\n## Rules\n${rules.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n\n## Decision rules\n- IF evidence is missing THEN treat the criterion as not met (fail-closed).\n- IF the request is outside this role's scope THEN escalate to the manager.\n` });
