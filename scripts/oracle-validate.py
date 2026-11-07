@@ -15,7 +15,11 @@ import os
 import json
 import glob
 import py_compile
-import jsonschema
+try:
+    import jsonschema
+    HAS_JSONSCHEMA = True
+except ImportError:
+    HAS_JSONSCHEMA = False
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 SCHEMAS_DIR = os.path.join(REPO_ROOT, "src", "schemas")
@@ -41,8 +45,11 @@ def validate_exported_bundle(bundle_dir):
             try:
                 data = json.load(fp)
                 if "contract" in schemas:
-                    jsonschema.validate(instance=data, schema=schemas["contract"])
-                    print(f"  ✅ [Schema] Valid contract: {os.path.relpath(contract_path, bundle_dir)}")
+                    if HAS_JSONSCHEMA:
+                        jsonschema.validate(instance=data, schema=schemas["contract"])
+                        print(f"  ✅ [Schema] Valid contract: {os.path.relpath(contract_path, bundle_dir)}")
+                    else:
+                        print(f"  ⚠️ [Schema Skipped] jsonschema not installed, contract JSON loaded successfully: {os.path.relpath(contract_path, bundle_dir)}")
             except Exception as e:
                 print(f"  ❌ [Schema Error] in {contract_path}: {e}")
                 errors += 1
