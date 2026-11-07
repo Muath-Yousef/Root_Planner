@@ -8,7 +8,7 @@ A production-grade, Cisco Packet Tracer-style visual topology studio for archite
 # 1. Install dependencies
 npm ci
 
-# 2. Run test suite (25 test suites, 216 unit, integration & UX tests)
+# 2. Run test suite (29 test suites, 309 unit, integration & UX tests)
 npm test
 
 # 3. Type check & production build (optimized vendor chunks < 500 KB)
@@ -16,6 +16,10 @@ npm run build
 
 # 4. Start local development server
 npm run dev
+
+# 5. Headless CLI (Phase 4) — validate, build and export without the UI
+npm run cli -- validate examples/influencers_system_v3.socroot.json
+npm run cli -- build examples/influencers_system_v3.yaml --out /tmp/v3.socroot.json
 ```
 
 ## Documentation & Auditing
@@ -28,6 +32,7 @@ npm run dev
 - **Reference Gaps & Disambiguations:** [`docs/REFERENCE_GAPS.md`](./docs/REFERENCE_GAPS.md) — canonical handling of ambiguous bands and role source derivations.
 - **Declarative Design Language (DSL):** [`docs/DSL.md`](./docs/DSL.md) — describe a topology in YAML and compile it to a v2 `.socroot.json` file (Phase 1); v3 as the first example.
 - **Automatic Layout Engine:** [`docs/LAYOUT.md`](./docs/LAYOUT.md) — lanes/grid, zone auto-sizing, edge-endpoint spreading (Phase 2); the v3 example now builds its zone children from the grid.
+- **Roles Registry & Permission Widening:** [`docs/ROLES.md`](./docs/ROLES.md) — registered roles, how to add one, and the documented path for widening a role's permissions (Phase 4); CLI commands (`validate` / `build` / `export`) documented there and in [`docs/DSL.md`](./docs/DSL.md).
 
 ## Architectural Highlights
 

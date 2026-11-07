@@ -2,7 +2,7 @@ import { compileSpec, DslError } from '../dsl/compiler';
 import type { LinesAnchor, LinesSpec, NodeSpec, TopologySpec } from '../dsl/schema';
 import type { RoleDefinition } from '../registry';
 import type { ProjectFile } from '../types';
-import influencerRoleDefs from '../../examples/influencer_roles';
+import influencerRoleDefs from '../registry/roles/influencer';
 
 /**
  * The parameterized influencer portfolio (Phase 3): the v3 topology as a
@@ -97,7 +97,7 @@ export function buildPortfolioSpec(options: PortfolioOptions = {}): TopologySpec
       ...(options.now !== undefined ? { created_at: options.now } : {}),
     },
     defaults: { department: 'dept_influencer_system', manager: 'inf.manager.v1', prefix: 'inf' },
-    roles: { source: 'examples/influencer_roles.ts', custom: ['collector', 'content_selector', 'creator'] },
+    roles: { source: 'src/registry/roles/influencer.ts', custom: ['collector', 'content_selector', 'creator'] },
     configs: { model_routing: 'preset', sources_watchlist: 'preset', pricing_config: 'preset' },
     layout: { step_x: 320, step_y: 170, pad: 40 },
     lines: { count: lines, nodes: lineTemplate.nodes },

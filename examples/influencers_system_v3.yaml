@@ -28,7 +28,7 @@ defaults:
   manager: inf.manager.v1
   prefix: inf
 
-roles: { source: examples/influencer_roles.ts, custom: [collector, content_selector, creator] }
+roles: { source: src/registry/roles/influencer.ts, custom: [collector, content_selector, creator] }
 
 configs: { model_routing: preset, sources_watchlist: preset, pricing_config: preset }
 

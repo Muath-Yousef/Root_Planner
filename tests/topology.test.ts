@@ -65,8 +65,9 @@ describe('registry-driven extension: one definition adds a role everywhere', () 
     expect(dockTemplates('CURRENT').some((r) => r.id === 'zone_dedicated')).toBe(false);
     expect(dockTemplates('TARGET').some((r) => r.id === 'zone_dedicated')).toBe(true);
   });
-  it('the registry carries the 13 roles of §6.3.2 (12 employees + manager) and the orchestrator', () => {
+  it('the registry carries the 13 roles of §6.3.2 (12 employees + manager), the orchestrator, and the 3 influencer roles (Phase 4)', () => {
     const ids = listRoles().filter((r) => r.employee).map((r) => r.id);
-    expect(ids.filter((i) => i !== 'orchestrator').length).toBe(13); expect(ids).toContain('orchestrator');
+    expect(ids.filter((i) => i !== 'orchestrator').length).toBe(16); expect(ids).toContain('orchestrator');
+    expect(ids).toEqual(expect.arrayContaining(['collector', 'content_selector', 'creator']));
   });
 });

@@ -11,7 +11,7 @@ import { CURRENT_FORMAT_VERSION } from '../src/schemas/project';
 import { getRole, mkEdge } from '../src/registry';
 import type { RoleDefinition } from '../src/registry/definitions';
 import type { CableKind, ProjectFile, SEdge, SNode } from '../src/types';
-import influencerRoleDefs from '../examples/influencer_roles';
+import influencerRoleDefs from '../src/registry/roles/influencer';
 
 /**
  * Influencer system topology v2 for Root Planner (socroot-topology-studio, format v2).
@@ -35,11 +35,14 @@ import influencerRoleDefs from '../examples/influencer_roles';
  *
  * Roles: nine new employees. Six are registry roles (integration_spec,
  * systems_engineer, knowledge_custodian, financial_controller,
- * performance_analyst, compliance). Three are CUSTOM roles the studio's
- * registry does not have yet — collector, content_selector, creator — built
- * here with makeEmployeeConfig from hand-written RoleDefinitions, exactly the
- * shape the registry's own emp() helper produces. Their contracts are
- * embedded in the file, so the file imports and validates with zero errors.
+ * performance_analyst, compliance). Three are CUSTOM roles — collector,
+ * content_selector, creator — built here with makeEmployeeConfig from
+ * hand-written RoleDefinitions, exactly the shape the registry's own emp()
+ * helper produces. Their contracts are embedded in the file, so the file
+ * imports and validates with zero errors. Since Phase 4 the same three
+ * definitions are also registered in the studio registry
+ * (src/registry/roles/influencer.ts); the generator still builds from its
+ * own literals, and the drift test below guards that the two stay equal.
  *
  * Permission honesty (the studio's own rules, verified in code):
  * - NodeData.role and the contract schema accept any string; the AJV project
@@ -58,8 +61,7 @@ import influencerRoleDefs from '../examples/influencer_roles';
  *   permissions), add one RoleDefinition file to src/registry/roles/ and
  *   register it in src/registry/index.ts — the studio's own extension point
  *   ("one RoleDefinition file is all that is needed to add a role"). That
- *   patch is prepared separately (examples/influencer_roles.ts) and is NOT
- *   applied to the repo by this file.
+ *   patch is applied since Phase 4 (src/registry/roles/influencer.ts).
  */
 
 const DEPT = 'dept_influencer_system';
@@ -424,9 +426,15 @@ describe('influencer system topology v2 (full pipeline, 7 Nov 2026)', () => {
     expect(nodes.filter((n) => n.data.status === 'PLANNED')).toHaveLength(22);
   });
 
-  it('custom roles carry embedded contracts and are not registry roles', () => {
+  it('custom roles carry embedded contracts and are registered roles (Phase 4)', () => {
     for (const id of ['collector', 'content_selector', 'creator']) {
-      expect(getRole(id), id).toBeUndefined();
+      // Registered since Phase 4: the registry definition is the source of
+      // truth, and it must equal the literal this generator builds from.
+      expect(getRole(id), id).toBeDefined();
+      expect(getRole(id)).toEqual(CUSTOM_ROLES[id]);
+      const perms = getRole(id)!.permissions!;
+      expect(perms.grants).toEqual(['model:invoke', 'task:read', 'task:complete']);
+      expect(perms.prohibitions).toContain('web:*');
       const n = byId(id);
       expect(n.data.employee, id).toBeTruthy();
       const contract = n.data.employee!.contract as { employee_id: string; role: string };
@@ -440,7 +448,7 @@ describe('influencer system topology v2 (full pipeline, 7 Nov 2026)', () => {
     }
   });
 
-  it('registry drop-in file matches the embedded custom roles', () => {
+  it('installed registry roles match the embedded custom roles', () => {
     expect(influencerRoleDefs).toEqual(Object.values(CUSTOM_ROLES));
   });
 

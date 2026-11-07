@@ -56,6 +56,22 @@ function findLine(source: string, needle: string): number | undefined {
   return idx >= 0 ? idx + 1 : undefined;
 }
 
+/** Structural equality (key-order-insensitive) — used to compare a
+ *  spec-declared custom role against the definition the registry already
+ *  holds (see compileSpec). */
+function deepEqual(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false;
+  if (Array.isArray(a) || Array.isArray(b)) {
+    return Array.isArray(a) && Array.isArray(b) && a.length === b.length && a.every((v, i) => deepEqual(v, b[i]));
+  }
+  const ra = a as Record<string, unknown>;
+  const rb = b as Record<string, unknown>;
+  const ka = Object.keys(ra);
+  const kb = Object.keys(rb);
+  return ka.length === kb.length && ka.every((k) => deepEqual(ra[k], rb[k]));
+}
+
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -629,11 +645,23 @@ export function compileSpec(spec: TopologySpec, options: CompileOptions = {}, so
   const customById = new Map((options.customRoles ?? []).map((d) => [d.id, d]));
   const customIds = new Set(spec.roles?.custom ?? []);
   for (const id of customIds) {
-    if (getRole(id)) {
-      fail(source, `الدور "${id}" مسجّل أصلاً في الاستوديو — لا يمكن إعلانه دوراً مخصصاً في roles.custom`, 'roles.custom', `custom: [${[...customIds].join(', ')}]`);
-    }
     if (!customById.has(id)) {
       fail(source, `الدور المخصص "${id}" معلن في roles.custom لكن لم يُمرَّر تعريفه إلى المترجم (خيار customRoles)`, 'roles.custom', `custom: [${[...customIds].join(', ')}]`);
+    }
+    // Phase 4: a custom declaration of a role the registry already holds is
+    // allowed ONLY when the passed definition is identical to the
+    // registered one — the v3 example does this (its three roles are
+    // registered, and the YAML still declares them custom so the compiler
+    // builds their nodes with the literal key order the delivered file
+    // has; templateNodeData emits `status` before `networkMode`, the
+    // custom branch the reverse, so routing a registered role through the
+    // registry branch would change the delivered bytes). A conflicting
+    // redefinition is refused: the registry is the source of truth, and
+    // widening a role is a decision in its RoleDefinition (docs/ROLES.md),
+    // not a second definition inside a spec.
+    const registered = getRole(id);
+    if (registered !== undefined && !deepEqual(customById.get(id), registered)) {
+      fail(source, `الدور "${id}" مسجّل في الاستوديو بتعريف مختلف عن المعلن في roles.custom — وحّد التعريفين أو أزل إعلانه من roles.custom`, 'roles.custom', `custom: [${[...customIds].join(', ')}]`);
     }
   }
   const ctx: BuildCtx = {

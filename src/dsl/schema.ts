@@ -9,8 +9,9 @@ import type { CableKind, Horizon, ImplementationStatus, IsolationMode } from '..
  *             file alone reproduces the delivered hash).
  *   defaults: factory defaults shared by every employee node (department,
  *             manager id, employee-id prefix).
- *   roles:    where the custom roles come from (a file reference, documentary
- *             only in Phase 1) and which role ids are custom.
+ *   roles:    where the custom roles come from (a file reference the
+ *             Phase 4 CLI loads, relative to the repository root) and
+ *             which role ids are custom.
  *   configs:  the three v2 config slots; each value is either the literal
  *             `preset` (resolved from src/dsl/presets.ts) or inline text.
  *   layout:   the grid the engine places `lane`/`row` nodes on (step_x,
@@ -32,9 +33,10 @@ import type { CableKind, Horizon, ImplementationStatus, IsolationMode } from '..
  *             An endpoint containing `{n}` expands to every line's instance
  *             of that template node (see docs/DSL.md).
  *
- * Deliberately NOT in Phase 3 (later phases): no CLI or file loading for
- * custom roles — the definitions are passed to the compiler as an option
- * (Phase 4). The top-level composition (founder / orchestrator / zone /
+ * Deliberately NOT in Phase 3 (later phases): the compiler itself never
+ * loads role files — the definitions are passed to it as an option. The
+ * Phase 4 CLI (src/cli/) loads the file named in roles.source and passes
+ * the definitions (see docs/ROLES.md). The top-level composition (founder / orchestrator / zone /
  * right column / web zone / kill switch) stays explicit `at:` positions:
  * only the grid rows know about the line count (`after-lines`); the
  * absolute positions of pe / bg / kill are correct for the authored
@@ -60,12 +62,15 @@ export interface DefaultsSpec {
 }
 
 export interface RolesSpec {
-  /** Path to the file the custom role definitions come from. Documentary in
-   *  Phase 1: the compiler does not load it; the caller passes the
-   *  definitions via the `customRoles` compiler option (Phase 4 wires file
-   *  loading). */
+  /** Path to the file the custom role definitions come from, relative to
+   *  the repository root. The compiler itself does not load it; the caller
+   *  passes the definitions via the `customRoles` compiler option — the
+   *  Phase 4 CLI (`src/cli/`) loads this file and passes them. */
   source?: string;
-  /** Role ids that are custom (not in the studio registry). */
+  /** Role ids built through the compiler's custom branch (literal node-data
+   *  key order). A role listed here that the registry already holds is
+   *  allowed only when the passed definition is identical to the
+   *  registered one — otherwise the compiler refuses it (see compileSpec). */
   custom?: string[];
 }
 

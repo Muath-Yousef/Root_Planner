@@ -27,7 +27,7 @@ project:
   created_at: '2026-11-07T06:19:00.000Z'   # مثبّت: نفس الملف يعيد نفس البصمة
 
 defaults: { department: dept_influencer_system, manager: inf.manager.v1, prefix: inf }
-roles: { source: examples/influencer_roles.ts, custom: [collector, content_selector, creator] }
+roles: { source: src/registry/roles/influencer.ts, custom: [collector, content_selector, creator] }
 configs: { model_routing: preset, sources_watchlist: preset, pricing_config: preset }
 layout: { step_x: 320, step_y: 170, pad: 40 }
 
@@ -49,7 +49,7 @@ edges:
 | --- | --- |
 | `project` | `id` / `name` / `tenant` (+ `tenant_name`، `isolation`، `horizon`) و`created_at` الاختياري. التاريخ المثبّت يجعل البناء حتمياً؛ خيار المترجم `now` يغلبه. |
 | `defaults` | افتراضات المصنع لكل عقد موظف: `department` و`manager` و`prefix` (افتراضياً `inf`). |
-| `roles` | `source`: مسار ملف الأدوار المخصصة (توثيقي في هذه المرحلة)؛ `custom`: معرفات الأدوار المخصصة. |
+| `roles` | `source`: مسار ملف الأدوار المخصصة (نسبةً إلى جذر المستودع؛ الـ CLI في المرحلة 4 يحمّله ويمرّر تعريفاته إلى المترجم)؛ `custom`: معرفات الأدوار المخصصة. |
 | `configs` | الإعدادات الثلاثة لصيغة v2؛ قيمة كل منها `preset` (تُحلّ من `src/dsl/presets.ts`) أو نص مضمّن حرفياً. إن حُذف القسم كله، تُستخدم الإعدادات الجاهزة الثلاثة. تُصدَّر دائماً بالترتيب القانوني. |
 | `layout` | معاملات شبكة التخطيط (المرحلة 2): `step_x` و`step_y` و`pad` — افتراضياتها 320/170/40. إن حُذف القسم، تسري الافتراضيات. التفصيل في `docs/LAYOUT.md`. |
 | `lines` | قالب خط واحد + عدده (المرحلة 3): `count` و`nodes` — انظر «الخطوط» أدناه. |
@@ -80,8 +80,16 @@ edges:
   `inf.<role>.v1` للعقدة الواحدة.
 - الأدوار المخصصة (`roles.custom`) تُبنى بالشكل الحرفي نفسه الذي يبنيه مولّد v3
   (`label, kind, role, networkMode, status, employee`)؛ وتعريفاتها تُمرَّر إلى
-  المترجم عبر خيار `customRoles` — المترجم **لا يسجّلها** في سجل الاستوديو العام
-  ولا يحمّل ملفها (تحميل الملف من الطرفية في المرحلة 4).
+  المترجم عبر خيار `customRoles` — المترجم **لا يسجّلها** في سجل الاستوديو العام.
+  ملف الأدوار يحمّله الـ CLI من `roles.source` (المرحلة 4، انظر `docs/ROLES.md`).
+  **قاعدة منذ المرحلة 4:** دور معلن في `roles.custom` ومسجّل في الاستوديو
+  في آن واحد يُقبل **فقط** حين يطابق التعريف الممرَّر التعريف المسجّل
+  تماماً — والمترجم يرفض أي تعريف متعارض. السبب بايتات: الفرع الحرفي
+  يصدر `networkMode` قبل `status`، بينما `templateNodeData` (فرع السجل)
+  يصدر `status` قبلها؛ فتوجيه دور مسجّل عبر فرع السجل يغيّر بايتات الملف
+  المولَّد. لذلك تبقى مواصفة v3 تعلن أدوارها الثلاثة مخصصة رغم تسجيلها —
+  ومصدر الحقيقة واحد (`src/registry/roles/influencer.ts`) يحرسه اختبار
+  الانحراف. دور مسجّل غير معلن مخصصاً يُبنى عبر فرع السجل مباشرة.
 - **بوابة أخيرة:** بعد كل الأخطاء البنيوية، يرفض المترجم أي توليد
   تتداخل فيه عقدتان على اللوحة (احتواء المنطقة لأبنائها ليس تداخلاً).
 
@@ -188,11 +196,30 @@ nodes:
 صحة الطوبولوجيا يحكم عليها الاستوديو نفسه (`parseProjectText` و`checkCable`
 و`collectProblems`) — لا مدقق موازٍ هنا.
 
+## سطر الأوامر (CLI) — المرحلة 4
+
+`npm run cli -- …` — تحقق وبناء وتصدير من الطرفية، بنفس دوال المحرك
+التي يستدعيها التطبيق (لا منطق مكرر). التفصيل في `docs/ROLES.md`.
+
+```
+npm run cli -- validate examples/influencers_system_v3.socroot.json
+npm run cli -- build examples/influencers_system_v3.yaml --out /tmp/v3.socroot.json
+npm run cli -- export examples/influencers_system_v3.yaml --out /tmp/v3-copy.socroot.json
+```
+
+- `validate <file>`: يقبل `.socroot.json` أو YAML؛ خروج 0 عند 0 أخطاء
+  (التحذيرات — مثل 21 تحذير `ORG-003` على v3 — لا تُفشل).
+- `build <spec.yaml>`: يترجم YAML (يحمّل الأدوار من `roles.source`)
+  إلى `.socroot.json`؛ حتمي حين يكون `created_at` مثبّتاً في المواصفة
+  أو حين يُمرَّر `--now <iso>`؛ بناء v3 يعيد الملف المسلَّم بايتاً
+  مطابقاً (البصمة `ac9f0478…`).
+- `export <file> --out <file>`: نسخة قانونية موثقة من مشروع سليم إلى
+  مسار مختار؛ يرفض مشروعاً فاشل التحقق.
+
 ## ما ليس في هذه المرحلة (عمداً)
 
 - التخطيط التلقائي موجود منذ المرحلة 2 (`docs/LAYOUT.md`) — لكن العقد
   العليا ما زالت بإحداثيات صريحة لأن تركيبها يدوي بلا قاعدة منتظمة؛
   وتغيير `count` في ملف YAML فوق 3 يصطدم بتلك المواضع (انظر «الخطوط»
   أعلاه) — القالب المعلَّم هو المسار المعلَّم لأكثر من 3 خطوط.
-- لا CLI ولا تحميل ملفات أدوار: التعريفات المخصصة تُمرَّر برمجياً (المرحلة 4).
 - لا تغيير في صيغة v2 ولا في سلوك المصنع ولا في الصلاحيات الافتراضية.

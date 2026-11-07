@@ -1,32 +1,21 @@
 /**
- * Custom influencer roles for Root Planner (socroot-topology-studio).
+ * Influencer roles for Root Planner (socroot-topology-studio) — INSTALLED.
  *
- * DROP-IN FILE — NOT installed. To install it in the founder's repo:
- *   1. Copy this file to src/registry/roles/influencer.ts
- *   2. In src/registry/index.ts add, next to the other registerRoles(...) calls:
- *        import influencerRoles from './roles/influencer';
- *        registerRoles(influencerRoles);
- *   3. Run the test suite; the v2 topology tests already cover these roles.
+ * Phase 4: the three custom roles of the influencer system (collector,
+ * content_selector, creator) are first-class registry roles. This file is
+ * the single source of truth for their definitions; it is registered in
+ * src/registry/index.ts (registerRoles), so getRole() resolves them and
+ * they appear in the dock and the inspector with their declared
+ * permissions. The v2/v3 generator tests keep their own literal copies of
+ * the same definitions (CUSTOM_ROLES) and a drift test asserts deep
+ * equality with this file, so the two cannot drift silently.
  *
- * Why this file exists: the v2 topology (influencers_system_v2.socroot.json)
- * defines three roles the studio's registry does not have — collector,
- * content_selector, creator — with their contracts embedded in the project
- * file, so the file imports and validates with zero errors as-is. This file
- * makes them first-class registry roles (dock templates, inspector, and
- * permissions). Their permissions are deliberately least-privilege
- * (source: 'derived'): model:invoke + task:* only — no web, no L2/L3.
- * The topology never asks them to do more (they use L1 working memory and
- * manager dispatch only). Widening them is a deliberate decision, not a fix.
- *
- * Mirror of the CUSTOM_ROLES in tests/influencers-v2-build.test.ts — a test
- * there asserts deep equality, so the two copies cannot drift silently.
- *
- * NOTE (Phase 1): the type import below resolves once this file is installed
- * under src/registry/roles/ (where ../definitions is correct). While the file
- * lives in examples/ the import does not resolve, so @ts-ignore keeps
- * `tsc --noEmit` green; it is a no-op once installed.
+ * Their permissions are deliberately least-privilege (source: 'derived'):
+ * model:invoke + task:* only — no web, no L2/L3. The topology never asks
+ * them to do more (they use L1 working memory and manager dispatch only).
+ * Widening them is a deliberate decision, not a fix — see docs/ROLES.md
+ * for the documented widening path.
  */
-// @ts-ignore — resolves to src/registry/definitions once installed (see NOTE above).
 import type { RoleDefinition } from '../definitions';
 
 const sk = (name: string, title: string, rules: string[]) => ({ name, body: `---\nname: ${name.replace('.md', '')}\nscope: ${title}\n---\n# ${title}\n\n## Rules\n${rules.map((r, i) => `${i + 1}. ${r}`).join('\n')}\n\n## Decision rules\n- IF evidence is missing THEN treat the criterion as not met (fail-closed).\n- IF the request is outside this role's scope THEN escalate to the manager.\n` });

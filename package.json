@@ -8,6 +8,7 @@
     "start": "tsx server.ts",
     "build:ref": "node scripts/build-reference-index.mjs",
     "build": "node scripts/build-reference-index.mjs && tsc --noEmit && vite build",
+    "cli": "tsx src/cli/index.ts",
     "lint": "tsc --noEmit",
     "test": "vitest run"
   },

@@ -59,8 +59,10 @@ import commandRoles from './roles/command';
 import employeeRoles from './roles/employees';
 import infraRoles from './roles/infrastructure';
 import zoneRoles from './roles/zones';
+import influencerRoles from './roles/influencer';
 
 registerRoles(commandRoles);
 registerRoles(employeeRoles);
 registerRoles(infraRoles);
 registerRoles(zoneRoles);
+registerRoles(influencerRoles);

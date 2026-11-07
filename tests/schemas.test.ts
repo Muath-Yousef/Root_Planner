@@ -44,7 +44,8 @@ describe('the six reference schemas (§2.2, verbatim, Draft 2020-12)', () => {
   it('objective_route: priority enum', () => expect(validateDoc('objective_route', { ...route(), objective: { ...route().objective, priority: 'urgent' } })[0].field).toBe('objective.priority'));
   it('contract and manifest: every employee role in the registry generates documents that validate', () => {
     const roles = listRoles().filter((r) => r.employee);
-    expect(roles.length).toBe(14); // the 13 roles of §6.3.2 plus core.orchestrator.v1
+    expect(roles.length).toBe(17); // the 13 roles of §6.3.2 plus core.orchestrator.v1 plus the 3 influencer roles (Phase 4)
+    expect(roles.map((r) => r.id)).toEqual(expect.arrayContaining(['collector', 'content_selector', 'creator']));
     for (const def of roles) {
       const c = makeEmployeeConfig(def, { prefix: 'opp_acq', department: 'dept_opportunity_acquisition', manager_id: 'opp_acq.manager.v1', tenant_id: 'socroot-core' });
       expect(validateDoc('contract', c.contract), def.id).toEqual([]);

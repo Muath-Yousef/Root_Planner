@@ -6,7 +6,7 @@ import { compileTopology, DslError } from '../src/dsl/compiler';
 import { checkCable } from '../src/engine/cablingValidator';
 import { collectProblems, errorCount } from '../src/engine/problems';
 import { parseProjectText, serializeProject } from '../src/persistence/projectIO';
-import influencerRoleDefs from '../examples/influencer_roles';
+import influencerRoleDefs from '../src/registry/roles/influencer';
 
 /**
  * Phase 1 — the DSL compiler is judged by the v3 example: one YAML file must
@@ -114,13 +114,30 @@ describe('DSL compiler — errors name the line and the field', () => {
     expect(caught!.field).toBe('nodes.x1.role');
   });
 
-  it('custom role without a passed definition is refused (not silently registry-resolved)', () => {
+  it('an unregistered role is refused; a registered role resolves from the registry', () => {
+    const ghost = minimal('  - { id: x1, role: ghost_role, at: [0, 0], label: س }\n  - { id: founder, role: founder, at: [0, 0], label: المؤسس }');
+    expect(() => compileTopology(ghost)).toThrowError(/ghost_role/);
+    // A registered role (Phase 4) needs no roles.custom declaration: the
+    // compiler resolves it from the registry (via templateNodeData).
     const src = minimal('  - { id: collector, role: collector, at: [0, 0], label: جامع البيانات }');
-    expect(() => compileTopology(src)).toThrowError(/collector/);
-    // With the definition passed, it compiles.
+    const viaRegistry = compileTopology(src);
+    expect(viaRegistry.nodes).toHaveLength(1);
+    expect((viaRegistry.nodes[0].data.employee!.contract as { employee_id: string }).employee_id).toBe('inf.collector.v1');
+    // Declaring it custom with the identical definition still compiles —
+    // this is the v3 path (literal key order, byte-identical output).
     const ok = compileTopology(`roles: { custom: [collector] }\n${src}`, { customRoles: influencerRoleDefs });
     expect(ok.nodes).toHaveLength(1);
     expect((ok.nodes[0].data.employee!.contract as { employee_id: string }).employee_id).toBe('inf.collector.v1');
+  });
+
+  it('a custom redefinition that conflicts with the registered role is refused', () => {
+    const widened = influencerRoleDefs.map((d) =>
+      d.id === 'collector'
+        ? { ...d, permissions: { grants: [...(d.permissions?.grants ?? []), 'web:read'], prohibitions: d.permissions?.prohibitions ?? [], source: 'derived' as const } }
+        : d,
+    );
+    const src = minimal('  - { id: collector, role: collector, at: [0, 0], label: جامع البيانات }');
+    expect(() => compileTopology(`roles: { custom: [collector] }\n${src}`, { customRoles: widened })).toThrowError(/مختلف/);
   });
 
   it('unknown edge endpoint names the missing id', () => {

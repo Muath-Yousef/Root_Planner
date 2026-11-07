@@ -6,7 +6,7 @@ import { compileTopology, DslError } from '../src/dsl/compiler';
 import {
   DEFAULT_GRID_PARAMS, edgeEndpointOffsets, findOverlaps, gridCellPosition, zoneSizeFromChildren,
 } from '../src/engine/layout';
-import influencerRoleDefs from '../examples/influencer_roles';
+import influencerRoleDefs from '../src/registry/roles/influencer';
 import type { SEdge, SNode } from '../src/types';
 
 /**

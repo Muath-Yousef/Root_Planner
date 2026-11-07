@@ -11,7 +11,7 @@ import { CURRENT_FORMAT_VERSION } from '../src/schemas/project';
 import { getRole, mkEdge } from '../src/registry';
 import type { RoleDefinition } from '../src/registry/definitions';
 import type { CableKind, ProjectFile, SEdge, SNode } from '../src/types';
-import influencerRoleDefs from '../examples/influencer_roles';
+import influencerRoleDefs from '../src/registry/roles/influencer';
 
 /**
  * Influencer system topology v3 for Root Planner (socroot-topology-studio, format v2).
@@ -39,8 +39,9 @@ import influencerRoleDefs from '../examples/influencer_roles';
  *
  * Roles: no new roles. The three v2 custom roles (collector, content_selector,
  * creator) are reused — one employee instance per line, each with its own
- * employee_id (inf.<role>_<line>.v1). The registry drop-in file
- * (examples/influencer_roles.ts) is unchanged; the drift test guards it here too.
+ * employee_id (inf.<role>_<line>.v1). Since Phase 4 they are registered
+ * registry roles (src/registry/roles/influencer.ts); the drift test guards
+ * them here too.
  *
  * Permission honesty (same studio rules as v2): custom roles keep
  * model:invoke + task:* only, so they use MEMORY_BUS to L1 only. The creator
@@ -469,11 +470,12 @@ describe('influencer system topology v3 (portfolio of 3 lines, 7 Nov 2026)', () 
   });
 
   it('custom roles carry embedded contracts, one instance per line', () => {
-    expect(getRole('collector')).toBeUndefined();
+    // Registered since Phase 4 (was: getRole returned undefined).
+    expect(getRole('collector')).toEqual(CUSTOM_ROLES['collector']);
     for (const n of lines) {
       for (const role of ['content_selector', 'creator']) {
         const id = `${role}_${n}`;
-        expect(getRole(role), id).toBeUndefined();
+        expect(getRole(role)).toEqual(CUSTOM_ROLES[role]);
         const node = byId(id);
         expect(node.data.employee, id).toBeTruthy();
         const contract = node.data.employee!.contract as { employee_id: string; role: string };
@@ -494,7 +496,7 @@ describe('influencer system topology v3 (portfolio of 3 lines, 7 Nov 2026)', () 
     expect(c.employee_id).toBe('inf.collector.v1');
   });
 
-  it('registry drop-in file matches the embedded custom roles', () => {
+  it('installed registry roles match the embedded custom roles', () => {
     expect(influencerRoleDefs).toEqual(Object.values(CUSTOM_ROLES));
   });
 

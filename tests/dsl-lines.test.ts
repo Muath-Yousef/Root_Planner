@@ -8,7 +8,7 @@ import { collectProblems, errorCount } from '../src/engine/problems';
 import { parseProjectText, serializeProject } from '../src/persistence/projectIO';
 import { buildPortfolioProject, buildPortfolioSpec, PORTFOLIO_DEFAULT_LINES } from '../src/presets/portfolio';
 import type { ProjectFile } from '../src/types';
-import influencerRoleDefs from '../examples/influencer_roles';
+import influencerRoleDefs from '../src/registry/roles/influencer';
 
 /**
  * Phase 3 — the multi-instance abstraction (`lines:`) and the parameterized
