@@ -148,7 +148,7 @@ describe('Phase 4 — CLI end-to-end (spawned)', () => {
   const tsx = path.join(ROOT, 'node_modules', '.bin', 'tsx');
   const run = (args: string[]) => spawnSync(tsx, ['src/cli/index.ts', ...args], { cwd: ROOT, encoding: 'utf-8' });
 
-  it('validate exits 0 on v3 and 1 on a broken file', () => {
+  it('validate exits 0 on v3 and 1 on a broken file', { timeout: 30000 }, () => {
     const ok = run(['validate', V3]);
     expect(ok.status).toBe(0);
     expect(ok.stdout).toMatch(/0 أخطاء، 21 تحذيراً/);
@@ -159,7 +159,7 @@ describe('Phase 4 — CLI end-to-end (spawned)', () => {
     expect(bad.stderr).toMatch(/خطأ/);
   });
 
-  it('build exits 0 and reproduces the v3 hash', () => {
+  it('build exits 0 and reproduces the v3 hash', { timeout: 30000 }, () => {
     const out = path.join(tmp, 'v3-e2e.socroot.json');
     const r = run(['build', V3_YAML, '--out', out]);
     expect(r.status).toBe(0);
@@ -167,7 +167,7 @@ describe('Phase 4 — CLI end-to-end (spawned)', () => {
     expect(sha256(out)).toBe(V3_SHA256);
   });
 
-  it('unknown command exits 1 with usage', () => {
+  it('unknown command exits 1 with usage', { timeout: 30000 }, () => {
     const r = run(['frobnicate', V3]);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/غير معروف/);

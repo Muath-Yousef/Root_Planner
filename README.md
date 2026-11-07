@@ -21,6 +21,11 @@ npm run dev
 npm run cli -- validate examples/influencers_system_v3.socroot.json
 npm run cli -- build examples/influencers_system_v3.yaml --out /tmp/v3.socroot.json
 npm run cli -- roles register ./my-role.ts
+
+# 6. Export & review (Phase 5) — image, diff and pre-publish checklist
+npm run cli -- export-image examples/influencers_system_v3.socroot.json --out /tmp/v3.svg
+npm run cli -- diff examples/influencers_system_v2.socroot.json examples/influencers_system_v3.socroot.json
+npm run cli -- review examples/influencers_system_v3.socroot.json --against examples/influencers_system_v2.socroot.json
 ```
 
 ## Documentation & Auditing
@@ -34,6 +39,7 @@ npm run cli -- roles register ./my-role.ts
 - **Declarative Design Language (DSL):** [`docs/DSL.md`](./docs/DSL.md) — describe a topology in YAML and compile it to a v2 `.socroot.json` file (Phase 1); v3 as the first example.
 - **Automatic Layout Engine:** [`docs/LAYOUT.md`](./docs/LAYOUT.md) — lanes/grid, zone auto-sizing, edge-endpoint spreading (Phase 2); the v3 example now builds its zone children from the grid.
 - **Roles Registry & Permission Widening:** [`docs/ROLES.md`](./docs/ROLES.md) — registered roles, how to add one, and the documented path for widening a role's permissions (Phase 4); CLI commands (`validate` / `build` / `export`) documented there and in [`docs/DSL.md`](./docs/DSL.md).
+- **Image Export, Diff & Review:** [`docs/EXPORT_REVIEW.md`](./docs/EXPORT_REVIEW.md) — built-in SVG/PNG export, version diff, and the pre-publish review checklist (Phase 5); CLI commands (`export-image` / `diff` / `review`).
 
 ## Architectural Highlights
 

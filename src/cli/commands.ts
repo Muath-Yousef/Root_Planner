@@ -7,6 +7,9 @@ import { compileTopology } from '../dsl/compiler';
 import type { RoleDefinition } from '../registry';
 import { checkCable } from '../engine/cablingValidator';
 import { collectProblems } from '../engine/problems';
+import { diffProjects, formatProjectDiff, type ProjectDiff } from '../engine/projectDiff';
+import { renderTopologySvg, topologyGeometry } from '../engine/topologyImage';
+import { renderTopologyPng } from '../engine/topologyPng';
 import { parseProjectText, serializeProject } from '../persistence/projectIO';
 import type { ProjectFile } from '../types';
 
@@ -163,4 +166,198 @@ export async function exportFile(input: string, outPath: string): Promise<BuildR
   }
   const project = await loadProject(input);
   return writeProject(project, outPath);
+}
+
+// ---------------------------------------------------------------------------
+// Phase 5 — export-image / diff / review
+// ---------------------------------------------------------------------------
+
+export type ImageFormat = 'svg' | 'png';
+
+export interface ImageExportResult {
+  outPath: string;
+  format: ImageFormat;
+  width: number;
+  height: number;
+  nodes: number;
+  edges: number;
+}
+
+const imageFormatOf = (outPath: string, format?: string): ImageFormat => {
+  if (format !== undefined) {
+    if (format !== 'svg' && format !== 'png') throw new Error(`صيغة الصورة يجب أن تكون svg أو png — أُعطيت: ${format}`);
+    return format;
+  }
+  if (/\.svg$/i.test(outPath)) return 'svg';
+  if (/\.png$/i.test(outPath)) return 'png';
+  throw new Error(`تعذّر استنتاج صيغة الصورة من الامتداد — استخدم --format svg أو --format png (المسار: ${outPath})`);
+};
+
+/**
+ * Renders a project to an image (SVG, or PNG via headless Chromium).
+ * Refuses a project that fails validation, like `exportFile` — an image
+ * of a broken topology is not a deliverable.
+ */
+export async function exportImageFile(input: string, outPath: string, format?: string): Promise<ImageExportResult> {
+  const fmt = imageFormatOf(outPath, format);
+  const report = await validateFile(input);
+  if (!report.ok) {
+    throw new Error(`لا يمكن تصدير صورة ${input}: ${report.errors.length} خطأ — أولها: ${report.errors[0]}`);
+  }
+  const project = await loadProject(input);
+  const svg = renderTopologySvg(project);
+  const { width, height } = topologyGeometry(project);
+  if (fmt === 'svg') {
+    fs.writeFileSync(outPath, `${svg}\n`, 'utf-8');
+  } else {
+    await renderTopologyPng(svg, outPath);
+  }
+  return { outPath, format: fmt, width, height, nodes: project.nodes.length, edges: project.edges.length };
+}
+
+export interface DiffResult {
+  diff: ProjectDiff;
+  aNodes: number;
+  aEdges: number;
+  bNodes: number;
+  bEdges: number;
+}
+
+/** Loads two projects and diffs them (b against a). */
+export async function diffFiles(a: string, b: string): Promise<DiffResult> {
+  const pa = await loadProject(a);
+  const pb = await loadProject(b);
+  return {
+    diff: diffProjects(pa, pb),
+    aNodes: pa.nodes.length, aEdges: pa.edges.length,
+    bNodes: pb.nodes.length, bEdges: pb.edges.length,
+  };
+}
+
+export const formatDiffResult = (r: DiffResult, a: string, b: string): string =>
+  [
+    `${formatProjectDiff(r.diff, a, b)}`,
+    `  (${a}: ${r.aNodes} عقدة، ${r.aEdges} رابطاً — ${b}: ${r.bNodes} عقدة، ${r.bEdges} رابطاً)`,
+  ].join('\n');
+
+export interface ReviewGate {
+  id: string;
+  name: string;
+  status: 'pass' | 'fail' | 'skip';
+  detail: string;
+}
+
+export interface ReviewReport {
+  file: string;
+  gates: ReviewGate[];
+  ok: boolean;
+  nodes: number;
+  edges: number;
+  sha256: string;
+}
+
+const shaOfProject = (project: ProjectFile): string =>
+  crypto.createHash('sha256').update(`${serializeProject(project)}\n`).digest('hex');
+
+/**
+ * Pre-publish review checklist: validation (0 errors) + stable hash +
+ * generated image + readable diff (against a baseline when given).
+ * Read-only by default; `--out <dir>` persists the generated SVG next
+ * to the review. A gate that cannot run (no baseline) is reported as
+ * skipped, never as passed.
+ */
+export async function reviewFile(input: string, opts: { against?: string; outDir?: string } = {}): Promise<ReviewReport> {
+  const gates: ReviewGate[] = [];
+  const report = await validateFile(input);
+  gates.push({
+    id: 'validation',
+    name: 'التحقق (0 أخطاء)',
+    status: report.ok ? 'pass' : 'fail',
+    detail: report.ok
+      ? `0 أخطاء، ${report.warnings.length} تحذيراً — ${report.nodes} عقدة، ${report.edges} رابطاً`
+      : `${report.errors.length} خطأ — أولها: ${report.errors[0]}`,
+  });
+  let project: ProjectFile | null = null;
+  let sha = '';
+  try {
+    project = await loadProject(input);
+    const first = shaOfProject(project);
+    const second = shaOfProject(await loadProject(input));
+    sha = first;
+    gates.push({
+      id: 'stable-hash',
+      name: 'البصمة المستقرة',
+      status: first === second ? 'pass' : 'fail',
+      detail: first === second ? `sha256 ${first.slice(0, 12)}… (متطابقة في توليدين)` : `البصمة تغيّرت بين توليدين: ${first.slice(0, 12)}… ← ${second.slice(0, 12)}…`,
+    });
+  } catch (e) {
+    sha = '';
+    gates.push({
+      id: 'stable-hash',
+      name: 'البصمة المستقرة',
+      status: 'fail',
+      detail: e instanceof Error ? e.message : String(e),
+    });
+  }
+  if (project !== null) {
+    try {
+      const svg = renderTopologySvg(project);
+      const { width, height } = topologyGeometry(project);
+      const edgeCount = (svg.match(/data-edge="/g) ?? []).length;
+      const missingNodes = project.nodes
+        .filter((n) => !svg.includes(`data-node="${n.id}"`))
+        .map((n) => n.id);
+      const imageOk = svg.length > 0 && edgeCount === project.edges.length && missingNodes.length === 0;
+      if (imageOk && opts.outDir !== undefined) {
+        fs.mkdirSync(opts.outDir, { recursive: true });
+        const stem = path.basename(input).replace(/\.(socroot\.json|ya?ml)$/i, '');
+        fs.writeFileSync(path.join(opts.outDir, `${stem}.topology.svg`), `${svg}\n`, 'utf-8');
+      }
+      gates.push({
+        id: 'image',
+        name: 'الصورة مولَّدة',
+        status: imageOk ? 'pass' : 'fail',
+        detail: imageOk
+          ? `SVG ${width}x${height} — ${project.nodes.length} عقدة، ${edgeCount} رابطاً${opts.outDir !== undefined ? ' (حُفظت في --out)' : ''}`
+          : `الصورة ناقصة: روابط مرسومة ${edgeCount} من ${project.edges.length}، عقد مفقودة: ${missingNodes.join('، ') || '—'}`,
+      });
+    } catch (e) {
+      gates.push({
+        id: 'image',
+        name: 'الصورة مولَّدة',
+        status: 'fail',
+        detail: e instanceof Error ? e.message : String(e),
+      });
+    }
+  } else {
+    gates.push({ id: 'image', name: 'الصورة مولَّدة', status: 'fail', detail: 'تعذّر تحميل المشروع' });
+  }
+  if (opts.against !== undefined) {
+    try {
+      const r = await diffFiles(opts.against, input);
+      gates.push({
+        id: 'diff',
+        name: 'الفرق مقروء',
+        status: 'pass',
+        detail: `مقابل ${opts.against}: العقد ${r.diff.netNodes > 0 ? '+' : ''}${r.diff.netNodes} صافياً، الروابط ${r.diff.netEdges > 0 ? '+' : ''}${r.diff.netEdges} صافياً`,
+      });
+    } catch (e) {
+      gates.push({
+        id: 'diff',
+        name: 'الفرق مقروء',
+        status: 'fail',
+        detail: e instanceof Error ? e.message : String(e),
+      });
+    }
+  } else {
+    gates.push({ id: 'diff', name: 'الفرق مقروء', status: 'skip', detail: 'لا ملف أساس — مرّر --against <file>' });
+  }
+  return {
+    file: input,
+    gates,
+    ok: gates.every((g) => g.status !== 'fail'),
+    nodes: report.nodes,
+    edges: report.edges,
+    sha256: sha,
+  };
 }

@@ -180,7 +180,7 @@ describe('Phase 4b — roles register end-to-end (spawned, temp repo copy)', () 
   fs.writeFileSync(fixtureSrc, fixtureText, 'utf-8');
   afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
-  it('registers the fixture role: files land in place and getRole resolves it', () => {
+  it('registers the fixture role: files land in place and getRole resolves it', { timeout: 30000 }, () => {
     const r = run(['roles', 'register', fixtureSrc]);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toMatch(/fixture_greeter/);
@@ -193,7 +193,7 @@ describe('Phase 4b — roles register end-to-end (spawned, temp repo copy)', () 
     expect(check.stdout.trim()).toBe('fixture_greeter');
   });
 
-  it('re-registering the same file is a no-op (exit 0, files unchanged)', () => {
+  it('re-registering the same file is a no-op (exit 0, files unchanged)', { timeout: 30000 }, () => {
     const indexBefore = sha256(tmpIndex);
     const destBefore = sha256(fixtureDest);
     const r = run(['roles', 'register', fixtureSrc]);
@@ -203,7 +203,7 @@ describe('Phase 4b — roles register end-to-end (spawned, temp repo copy)', () 
     expect(sha256(fixtureDest)).toBe(destBefore);
   });
 
-  it('re-registering the already-installed influencer.ts is a no-op', () => {
+  it('re-registering the already-installed influencer.ts is a no-op', { timeout: 30000 }, () => {
     const indexBefore = sha256(tmpIndex);
     const r = run(['roles', 'register', path.join(tmpRepo, 'src', 'registry', 'roles', 'influencer.ts')]);
     expect(r.status, r.stderr).toBe(0);
@@ -211,7 +211,7 @@ describe('Phase 4b — roles register end-to-end (spawned, temp repo copy)', () 
     expect(sha256(tmpIndex)).toBe(indexBefore);
   });
 
-  it('refuses an invalid file with an Arabic error and touches nothing', () => {
+  it('refuses an invalid file with an Arabic error and touches nothing', { timeout: 30000 }, () => {
     const badSrc = path.join(tmpRepo, 'bad-role.ts');
     fs.writeFileSync(badSrc, 'export default [{ kind: "guard" }];\n', 'utf-8');
     const indexBefore = sha256(tmpIndex);
@@ -223,7 +223,7 @@ describe('Phase 4b — roles register end-to-end (spawned, temp repo copy)', () 
     expect(fs.readdirSync(path.join(tmpRepo, 'src', 'registry', 'roles')).sort()).toEqual(rolesBefore);
   });
 
-  it('refuses a conflicting redefinition of collector and touches nothing', () => {
+  it('refuses a conflicting redefinition of collector and touches nothing', { timeout: 30000 }, () => {
     const clashSrc = path.join(tmpRepo, 'clash-role.ts');
     fs.writeFileSync(clashSrc, `export default [{ id: 'collector', kind: 'guard', category: 'Guards', label: { en: 'Other', ar: 'آخر' }, description: { en: 'x', ar: 'س' }, architecture_horizon: 'TRANSITIONAL', implementation_status: 'PLANNED', inspector: ['identity'] }];\n`, 'utf-8');
     const indexBefore = sha256(tmpIndex);

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import * as path from 'node:path';
-import { buildFile, exportFile, validateFile } from './commands';
+import { buildFile, diffFiles, exportFile, exportImageFile, formatDiffResult, reviewFile, validateFile } from './commands';
 import { registerRolesFile } from './roles';
 
 /**
@@ -10,6 +10,14 @@ import { registerRolesFile } from './roles';
  *   build <spec.yaml> [--out <f>] [--now <iso>]   ترجمة YAML إلى .socroot.json حتمياً
  *   export <file> --out <file>      نسخة قانونية موثقة من مشروع سليم إلى مسار مختار
  *   roles register <file>           تسجيل دور (أدوار) من ملف RoleDefinition (المرحلة 4ب)
+ *
+ * Phase 5 — export-image / diff / review:
+ *
+ *   export-image <file> --out <f.svg|f.png> [--format svg|png]
+ *                                 صورة الخريطة من داخل المستوديو (SVG أولاً، ثم PNG)
+ *   diff <file-a> <file-b>        فرق دقيق بين نسختين: عقد وروابط أُضيفت/حُذفت/تغيّرت
+ *   review <file> [--against <f>] [--out <dir>]
+ *                                 قائمة مراجعة قبل النشر: تحقق + بصمة مستقرة + صورة + فرق
  *
  * Exit code 0 on success, 1 on any failure. No browser, no UI.
  * Arabic-first messages; technical identifiers stay in English.
@@ -23,10 +31,17 @@ const USAGE = `socroot-cli — واجهة سطر أوامر استوديو Root 
                                                   ترجمة مواصفة YAML إلى .socroot.json
   npm run cli -- export <file> --out <file>       تصدير نسخة قانونية من مشروع سليم
   npm run cli -- roles register <file>            تسجيل دور (أدوار) من ملف RoleDefinition
+  npm run cli -- export-image <file> --out <file> [--format svg|png]
+                                                  تصدير صورة الخريطة (SVG أو PNG)
+  npm run cli -- diff <file-a> <file-b>           فرق دقيق بين نسختين من الخريطة
+  npm run cli -- review <file> [--against <file>] [--out <dir>]
+                                                  قائمة مراجعة قبل النشر
 
 الخيارات:
-  --out <file>   مسار الخرج (build: افتراضياً بجانب المواصفة بالامتداد .socroot.json؛ export: مطلوب)
+  --out <file>   مسار الخرج (build: افتراضياً بجانب المواصفة بالامتداد .socroot.json؛ export: مطلوب؛ export-image: مطلوب؛ review: مجلد لحفظ الـ SVG)
   --now <iso>    تثبيت الطابع الزمني للبناء (build فقط؛ بدونه يُستخدم created_at المثبّت في المواصفة، أو الوقت الحالي)
+  --format <svg|png>  صيغة الصورة (export-image فقط؛ بدونه تُستنتج من امتداد --out)
+  --against <file>    ملف الأساس للفرق (review فقط)
   --help, -h     هذه الرسالة
 
 أمثلة:
@@ -34,6 +49,10 @@ const USAGE = `socroot-cli — واجهة سطر أوامر استوديو Root 
   npm run cli -- build examples/influencers_system_v3.yaml --out /tmp/v3.socroot.json
   npm run cli -- export examples/influencers_system_v3.yaml --out /tmp/v3-copy.socroot.json
   npm run cli -- roles register ./my-role.ts
+  npm run cli -- export-image examples/influencers_system_v3.socroot.json --out /tmp/v3.svg
+  npm run cli -- export-image examples/influencers_system_v3.socroot.json --out /tmp/v3.png
+  npm run cli -- diff examples/influencers_system_v2.socroot.json examples/influencers_system_v3.socroot.json
+  npm run cli -- review examples/influencers_system_v3.socroot.json --against examples/influencers_system_v2.socroot.json
 `;
 
 function die(message: string): never {
@@ -41,17 +60,19 @@ function die(message: string): never {
   process.exit(1);
 }
 
-interface Flags { out?: string; now?: string; positional: string[] }
+interface Flags { out?: string; now?: string; format?: string; against?: string; positional: string[] }
 
 function parseFlags(args: string[]): Flags {
   const flags: Flags = { positional: [] };
   for (let i = 0; i < args.length; i++) {
     const a = args[i]!;
-    if (a === '--out' || a === '--now') {
+    if (a === '--out' || a === '--now' || a === '--format' || a === '--against') {
       const v = args[i + 1];
       if (v === undefined || v.startsWith('--')) die(`الخيار ${a} يحتاج قيمة — انظر --help`);
       if (a === '--out') flags.out = v;
-      else flags.now = v;
+      else if (a === '--now') flags.now = v;
+      else if (a === '--format') flags.format = v;
+      else flags.against = v;
       i++;
     } else if (a.startsWith('--')) {
       die(`خيار غير معروف: ${a} — انظر --help`);
@@ -83,6 +104,46 @@ async function main(): Promise<void> {
     return;
   }
   const input = flags.positional[0];
+  if (cmd === 'diff') {
+    if (flags.out !== undefined || flags.now !== undefined || flags.format !== undefined || flags.against !== undefined) {
+      die('أمر diff لا يقبل خيارات — انظر --help');
+    }
+    const [a, b] = flags.positional;
+    if (a === undefined || b === undefined) die('أمر diff يحتاج ملفين: diff <file-a> <file-b> — انظر --help');
+    if (flags.positional.length > 2) die(`أمر diff يقبل ملفين فقط — أُعطي: ${flags.positional.join('، ')}`);
+    const result = await diffFiles(a, b);
+    console.log(formatDiffResult(result, a, b));
+    return;
+  }
+
+  if (cmd === 'export-image') {
+    if (flags.now !== undefined || flags.against !== undefined) die('أمر export-image لا يقبل --now أو --against — انظر --help');
+    if (input === undefined) die('أمر export-image يحتاج ملفاً — انظر --help');
+    if (flags.positional.length > 1) die(`أمر export-image يقبل ملفاً واحداً — أُعطي: ${flags.positional.join('، ')}`);
+    if (flags.out === undefined) die('أمر export-image يحتاج --out <file> — انظر --help');
+    const result = await exportImageFile(input, flags.out, flags.format);
+    console.log(`✓ ${result.outPath}: ${result.format.toUpperCase()} ${result.width}x${result.height} — ${result.nodes} عقدة، ${result.edges} رابطاً`);
+    return;
+  }
+
+  if (cmd === 'review') {
+    if (flags.now !== undefined || flags.format !== undefined) die('أمر review لا يقبل --now أو --format — انظر --help');
+    if (input === undefined) die('أمر review يحتاج ملفاً — انظر --help');
+    if (flags.positional.length > 1) die(`أمر review يقبل ملفاً واحداً — أُعطي: ${flags.positional.join('، ')}`);
+    const report = await reviewFile(input, { against: flags.against, outDir: flags.out });
+    console.log(`مراجعة ${input} (${report.nodes} عقدة، ${report.edges} رابطاً):`);
+    for (const g of report.gates) {
+      const mark = g.status === 'pass' ? '✓' : g.status === 'fail' ? '✗' : '○';
+      console.log(`  ${mark} ${g.name} — ${g.detail}`);
+    }
+    if (!report.ok) {
+      console.error('✗ المراجعة فاشلة — أصلح البوابات الفاشلة قبل النشر');
+      process.exit(1);
+    }
+    console.log('✓ كل البوابات ناجحة — جاهز للنشر');
+    return;
+  }
+
   if (input === undefined) die(`أمر ${cmd} يحتاج ملفاً — انظر --help`);
   if (flags.positional.length > 1) die(`أمر ${cmd} يقبل ملفاً واحداً — أُعطي: ${flags.positional.join('، ')}`);
 
