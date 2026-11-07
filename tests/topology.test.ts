@@ -4,6 +4,7 @@ import { collectProblems, errorCount } from '../src/engine/problems';
 import { dockTemplates, getRole, listRoles, registerRoles, unregisterRole, type RoleDefinition } from '../src/registry';
 import { templateNodeData } from '../src/engine/employeeFactory';
 import { ref, node } from './helpers';
+import type { SNode } from '../src/types';
 
 describe('cabling rules are data read by cablingValidator (§1.5, §4.2.1)', () => {
   const { nodes, edges } = ref();
@@ -24,6 +25,26 @@ describe('cabling rules are data read by cablingValidator (§1.5, §4.2.1)', () 
     expect(checkCable(node(nodes, 'str'), node(nodes, 'l2'), 'MEMORY_BUS', 'write').verdict.ok).toBe(true);
   });
   it('a port mismatch is refused', () => expect(checkConnection(node(nodes, 'mgr'), node(nodes, 'scout'), 'out:TASK_DISPATCH_RESULT', 'in:KILL_PLANE_SIGNAL').verdict).toMatchObject({ code: 'POL_PORT_MISMATCH' }));
+  it('a manager may dispatch to and escalate to a subordinate manager (V4 team hierarchy)', () => {
+    // The two-level hierarchy V4 introduces: the department manager
+    // dispatches to team managers, and a team manager escalates to the
+    // department manager. Both pairs are manager→manager, which the
+    // cable rules allow only since V4 (see src/registry/cables.ts).
+    const teamMgr = (id: string): SNode => ({
+      id,
+      type: 'studio',
+      position: { x: 0, y: 0 },
+      data: templateNodeData('manager', { prefix: 'inf', department: 'dept_influencer_system', manager_id: 'inf.manager.v1', tenant_id: 'socroot-core' }),
+    }) as SNode;
+    const tm = teamMgr('tm_acq');
+    const mgr = node(nodes, 'mgr');
+    expect(checkCable(mgr, tm, 'TASK_DISPATCH_RESULT').verdict.ok).toBe(true);
+    expect(checkCable(tm, mgr, 'ESCALATION_PATH').verdict.ok).toBe(true);
+    // …and the old refusals still hold: no dispatch to the founder, and
+    // no employee escalates to the founder directly.
+    expect(checkCable(mgr, node(nodes, 'founder'), 'TASK_DISPATCH_RESULT').verdict.ok).toBe(false);
+    expect(checkCable(node(nodes, 'scout'), node(nodes, 'founder'), 'ESCALATION_PATH').verdict.ok).toBe(false);
+  });
   it('compatible ports light up while dragging: scout egress can only land on SSRFGuard', () => {
     const ok = compatibleNodes(node(nodes, 'scout'), 'EGRESS_NETWORK', 'out', nodes);
     expect([...ok]).toEqual(['ssrf']);

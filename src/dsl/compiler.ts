@@ -210,6 +210,13 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
     if (typeof count !== 'number' || !Number.isInteger(count) || count < 1) {
       fail(source, 'الحقل "count" في lines يجب أن يكون عدداً صحيحاً ≥ 1 — عدد الخطوط', 'lines.count', 'count:');
     }
+    // V4: the whole line block may start below a header row (e.g. team
+    // managers at row 0): template `row: "{n}"` becomes n + row_offset,
+    // and `after-lines` becomes count + 1 + row_offset. Default 0 = v3.
+    const rowOffset = optInt(raw.lines, 'row_offset', 'lines', source) ?? 0;
+    if (rowOffset < 0) {
+      fail(source, 'الحقل "row_offset" في lines يجب أن يكون عدداً صحيحاً ≥ 0 — إزاحة صفوف كتلة الخطوط', 'lines.row_offset', 'row_offset:');
+    }
     if (!Array.isArray(raw.lines.nodes) || raw.lines.nodes.length === 0) {
       fail(source, 'قسم "lines.nodes" مطلوب ويجب أن يكون قائمة غير فارغة', 'lines.nodes');
     }
@@ -264,7 +271,7 @@ function validateSpec(raw: unknown, source: string): TopologySpec {
       if (entry.size !== undefined) t.size = reqPair(entry, 'size', where, source);
       return t;
     });
-    lines = { count, nodes: template };
+    lines = { count, row_offset: rowOffset, nodes: template };
   }
 
   if (!Array.isArray(raw.nodes) || raw.nodes.length === 0) fail(source, 'قسم "nodes" مطلوب ويجب أن يكون قائمة غير فارغة', 'nodes');
@@ -552,18 +559,19 @@ function isEmployeeRole(role: string, ctx: BuildCtx): boolean {
 
 /**
  * One template node → one concrete instance for line n. `{n}` is substituted
- * in id / label / name / employee_id; `row: "{n}"` becomes the line number;
+ * in id / label / name / employee_id; `row: "{n}"` becomes the line number
+ * plus the block's row_offset (so a header row can sit above the lines);
  * `at` steps by (n − 1) × step; an omitted employee_id is derived as
  * `<prefix>.<role>_<n>.v1` for employee roles (via the factory's own
  * employeeId, so the derivation cannot drift from the factory).
  */
-function expandTemplateNode(t: LineNodeSpec, n: number, ctx: BuildCtx): NodeSpec {
+function expandTemplateNode(t: LineNodeSpec, n: number, ctx: BuildCtx, rowOffset = 0): NodeSpec {
   const node: NodeSpec = {
     id: substLine(t.id, n),
     role: t.role,
     ...(t.at !== undefined ? { at: [t.at[0] + (t.step?.[0] ?? 0) * (n - 1), t.at[1] + (t.step?.[1] ?? 0) * (n - 1)] as [number, number] } : {}),
     ...(t.lane !== undefined ? { lane: t.lane } : {}),
-    ...(t.row !== undefined ? { row: t.row === '{n}' ? n : t.row } : {}),
+    ...(t.row !== undefined ? { row: t.row === '{n}' ? n + rowOffset : t.row } : {}),
     ...(t.label !== undefined ? { label: substLine(t.label, n) } : {}),
     ...(t.status !== undefined ? { status: t.status } : {}),
     ...(t.prefix !== undefined ? { prefix: t.prefix } : {}),
@@ -584,21 +592,22 @@ function expandTemplateNode(t: LineNodeSpec, n: number, ctx: BuildCtx): NodeSpec
  * The `nodes:` list with every lines anchor replaced by its instances, in
  * file order, line by line: for line 1 the anchor's template nodes (in
  * listed order), then line 2, and so on. A plain node's `row:
- * "after-lines"` resolves to count + 1 here — the expansion is where the
- * line count is known.
+ * "after-lines"` resolves to count + 1 + row_offset here — the expansion
+ * is where the line count (and the block's offset) is known.
  */
 function expandNodes(spec: TopologySpec, ctx: BuildCtx): NodeSpec[] {
   const count = spec.lines?.count ?? 0;
+  const rowOffset = spec.lines?.row_offset ?? 0;
   const template = new Map((spec.lines?.nodes ?? []).map((t) => [t.id, t]));
   const out: NodeSpec[] = [];
   for (const entry of spec.nodes) {
     if ('lines' in entry) {
       const ids = entry.lines === true ? [...template.keys()] : entry.lines;
       for (let n = 1; n <= count; n++) {
-        for (const tid of ids) out.push(expandTemplateNode(template.get(tid)!, n, ctx));
+        for (const tid of ids) out.push(expandTemplateNode(template.get(tid)!, n, ctx, rowOffset));
       }
     } else {
-      out.push(entry.row === 'after-lines' ? { ...entry, row: count + 1 } : entry);
+      out.push(entry.row === 'after-lines' ? { ...entry, row: count + 1 + rowOffset } : entry);
     }
   }
   return out;

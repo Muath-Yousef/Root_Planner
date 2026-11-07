@@ -19,7 +19,12 @@ import type { CableKind, Horizon, ImplementationStatus, IsolationMode } from '..
  *   lines:    ONE line template + a count (Phase 3): the template's nodes
  *             are instantiated once per line, with `{n}` = the line index
  *             (1-based). Anchors in `nodes` say where each template node's
- *             instances land in the emitted file order.
+ *             instances land in the emitted file order. `row_offset`
+ *             (V4, default 0) shifts the whole line block down that many
+ *             rows — `row: "{n}"` becomes n + row_offset, and `after-lines`
+ *             becomes count + 1 + row_offset — so a header row (e.g. team
+ *             managers at row 0) can sit above the lines without moving
+ *             any template node by hand.
  *   nodes:    a flat list in file order — the compiler keeps document order,
  *             exactly like the generator it replaces. A node with `parent:`
  *             becomes a child of that zone (parentId + extent 'parent').
@@ -99,7 +104,8 @@ export interface NodeSpec {
    *  canvas for a top-level node. Requires `row`. */
   lane?: number;
   /** Grid row (Phase 2): y = step_y × row — or the string `after-lines`
-   *  (Phase 3): the first row after the line block, i.e. count + 1.
+   *  (Phase 3): the first row after the line block, i.e. count + 1 +
+   *  row_offset (0 when the lines block sets no offset).
    *  Requires `lane` and a `lines:` block. */
   row?: number | 'after-lines';
   /** Defaults to the role definition's English label (the factory's rule). */
@@ -170,7 +176,8 @@ export interface EdgeSpec {
  *   each instance distinct. `label`, `name` and `employee_id` MAY contain
  *   `{n}`; `parent` and `prefix` must not.
  * - `row` may be the string `'{n}'` — the instance's row IS its line
- *   number (write it quoted in YAML: `row: "{n}"`).
+ *   number, plus the block's `row_offset` when set (write it quoted in
+ *   YAML: `row: "{n}"`).
  * - `step` (with `at:` only) shifts each later instance: instance k sits
  *   at `at + (k − 1) × step`. The v3 income registers use it
  *   (`at: [2760, 680]`, `step: [0, 170]`).
@@ -212,6 +219,11 @@ export interface LinesAnchor {
 export interface LinesSpec {
   /** Number of lines (≥ 1). The v3 portfolio uses 3. */
   count: number;
+  /** Rows the whole line block shifts down (V4, default 0): template
+   *  `row: "{n}"` becomes n + row_offset, and a plain node's
+   *  `row: after-lines` becomes count + 1 + row_offset. Lets a header
+   *  row (e.g. team managers) sit above the lines. Must be ≥ 0. */
+  row_offset?: number;
   nodes: LineNodeSpec[];
 }
 

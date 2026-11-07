@@ -1,0 +1,132 @@
+# منظومة المؤثرين — مسودة v4: تقسيم مدراء الفرق (7 تشرين الثاني 2026).
+# تُترجم عبر src/dsl/compiler.ts إلى examples/influencers_system_v4.socroot.json
+# (انظر tests/influencers-v4-build.test.ts). مسودة للتقييم فقط — v3
+# (البصمة ac9f0478…) ما زالت الهدف المعتمد ولم تُمسّ.
+#
+# التقسيم (قرار المؤسس): مدير القسم لا يسند إلى 20 موظفاً مباشرة، بل
+# يوزّع العمل على 6 مدراء فرق، وكل مدير فريق يسند إلى مجموعته ويصعّد
+# إلى مدير القسم. الفرق الأربعة: الاستكشاف والتحويل (3)، السياق
+# والتقييم (4)، الخطوط — مدير لكل خط (3×3)، العمليات (4).
+# المعايير الحاكمة الستة: كفاءة إنتاج، قابلية توسع، قابلية تتبع،
+# معالجة أخطاء، تحسين وتطوير بأقل جهد وتكلفة، دون تداخل بيانات أو
+# تضارب مهام — انظر docs/V4_DRAFT.md.
+#
+# التخطيط: صف ترويسة جديد (row 0) لمدراء الفرق فوق فرقهم؛
+# lines.row_offset: 1 يزيح كتلة الخطوط وصف after-lines صفاً واحداً
+# (الخطوط في الصفوف 2..4، والعمليات في الصف 5). العمود الأيمن يزيح
+# صفاً واحداً تحت L3 (السجلات 850/1020/1190، ثم pe وbg)، والقاطع
+# يزيح إلى 1120 — المنطقة تنمو إلى 2160×954.
+#
+# الإسناد: قوائم to: صريحة لهذه التجربة — قاعدة department الحالية لا
+# تعبّر عن مستويين (تسند إلى كل موظفي القسم بمن فيهم مدراء الفرق).
+# قاعدة فريق (dispatch: [team]) متابعة مقترحة إن اعتُمد التقسيم.
+# الإيقاف يصل إلى مدراء الخطوط الثلاثة (إيقاف الخلية كاملة)، إضافة
+# إلى مدير القسم والناشر والمنشئين كما في v3.
+#
+# عقود الموظفين: manager_id ما زال مدير القسم (inf.manager.v1) للجميع
+# — بنية الفريق معبَّر عنها بكابلات الإسناد والتصعيد، لا بحقل العقد.
+# توحيد manager_id مع الفريق (حقل manager لكل عقدة) متابعة مقترحة.
+
+project:
+  id: proj-influencers-system-v4
+  name: منظومة المؤثرين (v4 — مسودة)
+  tenant: socroot-core
+  tenant_name: Sovereign Core
+  isolation: logical_rls
+  horizon: TRANSITIONAL
+  created_at: '2026-11-07T12:45:00.000Z'
+
+defaults:
+  department: dept_influencer_system
+  manager: inf.manager.v1
+  prefix: inf
+
+roles: { source: src/registry/roles/influencer.ts, custom: [collector, content_selector, creator] }
+
+configs: { model_routing: preset, sources_watchlist: preset, pricing_config: preset }
+
+layout: { step_x: 320, step_y: 170, pad: 40 }
+
+lines:
+  count: 3
+  row_offset: 1
+  nodes:
+    - { id: "content_selector_{n}", role: content_selector, lane: 3, row: "{n}", label: "مختار المحتوى {n}", name: "Content Selector {n}", parent: zone_dept }
+    - { id: "creator_{n}", role: creator, lane: 4, row: "{n}", label: "صانع المحتوى {n}", name: "Creator {n}", parent: zone_dept }
+    - { id: "drf_{n}", role: drafter, lane: 5, row: "{n}", label: "الصائغ {n}", status: PLANNED, name: "Drafter {n}", parent: zone_dept }
+    - { id: "creator_profile_{n}", role: l2, lane: 6, row: "{n}", label: "L2 — ملف صانع المحتوى {n}", status: PLANNED, parent: zone_dept }
+    - { id: "income_register_{n}", role: l2, at: [2760, 850], step: [0, 170], label: "L2 — سجل مصادر الدخل {n}", status: PLANNED }
+
+nodes:
+  - { id: founder, role: founder, at: [0, 300], label: المؤسس }
+  - { id: orch, role: orchestrator, at: [230, 300], label: المنسق, status: PLANNED, prefix: core }
+  - { id: zone_dept, role: zone_line, at: [470, -40], label: dept_influencer_system, status: PLANNED, department_id: dept_influencer_system }
+  - { id: mgr, role: manager, lane: 0, row: 3, label: مدير قطاع المؤثرين, status: PLANNED, parent: zone_dept }
+  - { id: tm_acq, role: manager, lane: 1, row: 0, label: مدير فريق الاستكشاف والتحويل, status: PLANNED, parent: zone_dept, employee_id: inf.manager_acquisition.v1, name: Acquisition Team Manager }
+  - { id: tm_ctx, role: manager, lane: 2, row: 0, label: مدير فريق السياق والتقييم, status: PLANNED, parent: zone_dept, employee_id: inf.manager_context.v1, name: Context Team Manager }
+  - { id: tm_line_1, role: manager, lane: 3, row: 0, label: مدير الخط 1, status: PLANNED, parent: zone_dept, employee_id: inf.manager_line_1.v1, name: Line 1 Manager }
+  - { id: tm_line_2, role: manager, lane: 4, row: 0, label: مدير الخط 2, status: PLANNED, parent: zone_dept, employee_id: inf.manager_line_2.v1, name: Line 2 Manager }
+  - { id: tm_line_3, role: manager, lane: 5, row: 0, label: مدير الخط 3, status: PLANNED, parent: zone_dept, employee_id: inf.manager_line_3.v1, name: Line 3 Manager }
+  - { id: tm_ops, role: manager, lane: 6, row: 0, label: مدير فريق العمليات, status: PLANNED, parent: zone_dept, employee_id: inf.manager_ops.v1, name: Operations Team Manager }
+  - { id: scout, role: scout, lane: 1, row: 1, label: المستطلع, status: PLANNED, parent: zone_dept }
+  - { id: collector, role: collector, lane: 1, row: 2, label: جامع بيانات المؤثرين, parent: zone_dept }
+  - { id: transformer, role: systems_engineer, lane: 1, row: 3, label: مهندس تحويل البيانات, parent: zone_dept }
+  - { id: ctx, role: context, lane: 2, row: 1, label: السياق, status: PLANNED, parent: zone_dept }
+  - { id: custodian, role: knowledge_custodian, lane: 2, row: 2, label: أمين قاعدة البيانات, parent: zone_dept }
+  - { id: eva, role: evaluator, lane: 2, row: 3, label: المقيّم, status: PLANNED, parent: zone_dept }
+  - { id: str, role: strategist, lane: 3, row: 1, label: الاستراتيجي, status: PLANNED, parent: zone_dept }
+  - { lines: ["content_selector_{n}", "creator_{n}", "drf_{n}", "creator_profile_{n}"] }
+  - { id: publisher, role: integration_spec, lane: 3, row: after-lines, label: الناشر, parent: zone_dept }
+  - { id: compliance, role: compliance, lane: 4, row: after-lines, label: مراجع الامتثال والإفصاح, parent: zone_dept }
+  - { id: income_mgr, role: financial_controller, lane: 5, row: after-lines, label: مدير مصادر الدخل, parent: zone_dept }
+  - { id: perf_analyst, role: performance_analyst, lane: 6, row: after-lines, label: محلل الأداء والدخل, parent: zone_dept }
+  - { id: ssrf, role: ssrf_guard, at: [2760, 0], label: حارس SSRF ووكيل الخروج }
+  - { id: l1, role: l1, at: [2760, 170], label: L1 — البيانات الخام, status: PLANNED }
+  - { id: l2, role: l2, at: [2760, 340], label: L2 — قاعدة بيانات المؤثرين }
+  - { id: l3, role: l3, at: [2760, 510], label: L3 — الذاكرة الدلالية, status: PLANNED }
+  - { lines: ["income_register_{n}"] }
+  - { id: pe, role: policy_engine, at: [2760, 1360], label: محرك السياسات }
+  - { id: bg, role: budget_guard, at: [2760, 1530], label: حارس الميزانية }
+  - { id: zone_web, role: zone_untrusted, at: [3020, -30], size: [260, 200], label: العالم غير الموثوق }
+  - { id: web, role: external, at: [40, 70], label: Instagram, status: PLANNED, parent: zone_web }
+  - { id: kill, role: kill_switch, at: [470, 1120], label: قاطع الطوارئ }
+
+edges:
+  - { from: founder, to: orch, kind: OBJECTIVE_ROUTE }
+  - { from: orch, to: mgr, kind: OBJECTIVE_ROUTE }
+  - { from: mgr, to: [tm_acq, tm_ctx, tm_line_1, tm_line_2, tm_line_3, tm_ops], kind: TASK_DISPATCH_RESULT }
+  - { from: tm_acq, to: [scout, collector, transformer], kind: TASK_DISPATCH_RESULT }
+  - { from: tm_ctx, to: [ctx, custodian, eva, str], kind: TASK_DISPATCH_RESULT }
+  - { from: tm_line_1, to: [content_selector_1, creator_1, drf_1], kind: TASK_DISPATCH_RESULT }
+  - { from: tm_line_2, to: [content_selector_2, creator_2, drf_2], kind: TASK_DISPATCH_RESULT }
+  - { from: tm_line_3, to: [content_selector_3, creator_3, drf_3], kind: TASK_DISPATCH_RESULT }
+  - { from: tm_ops, to: [publisher, compliance, income_mgr, perf_analyst], kind: TASK_DISPATCH_RESULT }
+  - { from: mgr, to: founder, kind: ESCALATION_PATH }
+  - { from: [tm_acq, tm_ctx, tm_line_1, tm_line_2, tm_line_3, tm_ops], to: mgr, kind: ESCALATION_PATH }
+  - { from: scout, to: ssrf, kind: EGRESS_NETWORK }
+  - { from: ssrf, to: web, kind: EGRESS_NETWORK }
+  - { from: publisher, to: ssrf, kind: EGRESS_NETWORK }
+  - { from: scout, to: l1, kind: MEMORY_BUS, access: write }
+  - { from: collector, to: l1, kind: MEMORY_BUS, access: write }
+  - { from: transformer, to: l1, kind: MEMORY_BUS, access: read }
+  - { from: transformer, to: l2, kind: MEMORY_BUS, access: write }
+  - { from: transformer, to: "income_register_{n}", kind: MEMORY_BUS, access: write }
+  - { from: custodian, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: custodian, to: l3, kind: MEMORY_BUS, access: write }
+  - { from: str, to: "creator_profile_{n}", kind: MEMORY_BUS, access: write }
+  - { from: "drf_{n}", to: "creator_profile_{n}", kind: MEMORY_BUS, access: read }
+  - { from: eva, to: "creator_profile_{n}", kind: MEMORY_BUS, access: read }
+  - { from: compliance, to: "creator_profile_{n}", kind: MEMORY_BUS, access: read }
+  - { from: perf_analyst, to: "creator_profile_{n}", kind: MEMORY_BUS, access: read }
+  - { from: eva, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: compliance, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: income_mgr, to: "income_register_{n}", kind: MEMORY_BUS, access: read }
+  - { from: income_mgr, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: perf_analyst, to: "income_register_{n}", kind: MEMORY_BUS, access: read }
+  - { from: perf_analyst, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: ctx, to: l3, kind: MEMORY_BUS, access: read }
+  - { from: str, to: l2, kind: MEMORY_BUS, access: read }
+  - { from: kill, to: mgr, kind: KILL_PLANE_SIGNAL }
+  - { from: kill, to: publisher, kind: KILL_PLANE_SIGNAL }
+  - { from: kill, to: "creator_{n}", kind: KILL_PLANE_SIGNAL }
+  - { from: kill, to: [tm_line_1, tm_line_2, tm_line_3], kind: KILL_PLANE_SIGNAL }

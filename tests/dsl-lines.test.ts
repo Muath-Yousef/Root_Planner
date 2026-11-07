@@ -205,6 +205,62 @@ edges:
   });
 });
 
+describe('row_offset — a header row above the line block (V4)', () => {
+  // Same mini spec as above, plus one shared-operations node on the
+  // after-lines row: with row_offset 1 the writers move to rows 2..3
+  // and after-lines moves to row 4; without it nothing moves.
+  const withOffset = (offset: string) => `project:
+  id: proj-offset
+  name: إزاحة
+  tenant: socroot-core
+  horizon: TRANSITIONAL
+lines:
+  count: 2
+${offset}  nodes:
+    - id: writer_{n}
+      role: drafter
+      lane: 1
+      row: "{n}"
+      label: "كاتب {n}"
+      status: PLANNED
+    - id: profile_{n}
+      role: l2
+      lane: 2
+      row: "{n}"
+      label: "ملف {n}"
+      status: PLANNED
+nodes:
+  - { id: mgr, role: manager, at: [0, 0], label: المدير, status: PLANNED }
+  - { id: ops, role: integration_spec, lane: 1, row: after-lines, label: العمليات, status: PLANNED }
+  - { lines: true }
+edges:
+  - { from: mgr, to: "writer_{n}", kind: TASK_DISPATCH_RESULT }
+  - { from: "writer_{n}", to: "profile_{n}", kind: MEMORY_BUS, access: read }
+`;
+  const yOf = (project: ProjectFile, id: string) => project.nodes.find((n) => n.id === id)!.position.y;
+
+  it('shifts template rows and after-lines down by the offset', () => {
+    const project = compileTopology(withOffset('  row_offset: 1\n'));
+    expect(yOf(project, 'writer_1')).toBe(340);
+    expect(yOf(project, 'writer_2')).toBe(510);
+    expect(yOf(project, 'profile_1')).toBe(340);
+    expect(yOf(project, 'ops')).toBe(680);
+    assertValid(project);
+  });
+
+  it('defaults to 0: no offset leaves v3 rows untouched', () => {
+    const project = compileTopology(withOffset(''));
+    expect(yOf(project, 'writer_1')).toBe(170);
+    expect(yOf(project, 'writer_2')).toBe(340);
+    expect(yOf(project, 'ops')).toBe(510);
+  });
+
+  it('a negative or non-integer offset is refused', () => {
+    expect(() => compileTopology(withOffset('  row_offset: -1\n'))).toThrowError(/≥ 0/);
+    expect(() => compileTopology(withOffset('  row_offset: 1.5\n'))).toThrowError(/عدداً صحيحاً/);
+  });
+});
+
 describe('lines abstraction — errors name the problem', () => {
   const head = `project:
   id: proj-test
