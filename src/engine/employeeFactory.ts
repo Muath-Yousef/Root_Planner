@@ -7,7 +7,7 @@ export const employeeId = (prefix: string, role: string, version = 1) => `${slug
 const NOW = () => new Date().toISOString();
 const deptFolder = (dept: string) => `${slug(dept)}`;
 
-export interface FactoryOptions { prefix: string; department: string; manager_id: string; tenant_id: string; version?: number; employee_id?: string; name?: string }
+export interface FactoryOptions { prefix: string; department: string; manager_id: string; tenant_id: string; version?: number; employee_id?: string; name?: string; created_at?: string }
 
 export function buildContract(def: RoleDefinition, o: FactoryOptions, id: string, network: NetworkMode, autonomy: number): Record<string, unknown> {
   const t = def.employee!;
@@ -50,7 +50,7 @@ export function makeEmployeeConfig(def: RoleDefinition, o: FactoryOptions): Empl
   const contract = buildContract(def, o, id, def.network ?? 'internal', t.autonomy_level);
   const base = { lifecycle: LIFECYCLE.initial, deployment: DEPLOYMENT.initial, autonomy, secrets: (t.secrets ?? []).map((s) => ({ ...s })) };
   return {
-    ...base, contract, manifest: buildManifest(contract, base, o.tenant_id),
+    ...base, contract, manifest: buildManifest(contract, base, o.tenant_id, o.created_at ?? NOW()),
     promotion: { synthetic_passed: 0, shadow_match_rate: 0, scorecard: Object.fromEntries(t.scorecard.map((k) => [k, 0])) },
     skills: t.skills.map((s) => ({ ...s })), custom_code: CODE,
   };

@@ -8,7 +8,7 @@ A production-grade, Cisco Packet Tracer-style visual topology studio for archite
 # 1. Install dependencies
 npm ci
 
-# 2. Run test suite (19 test suites, 175 unit, integration & UX tests)
+# 2. Run test suite (25 test suites, 216 unit, integration & UX tests)
 npm test
 
 # 3. Type check & production build (optimized vendor chunks < 500 KB)

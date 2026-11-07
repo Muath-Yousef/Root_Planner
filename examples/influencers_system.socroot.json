@@ -1,0 +1,1466 @@
+{
+  "format_version": 2,
+  "app": "socroot-topology-studio",
+  "id": "proj-influencers-system-v1",
+  "name": "منظومة المؤثرين",
+  "tenant": {
+    "tenant_id": "socroot-core",
+    "isolation": "logical_rls",
+    "name": "Sovereign Core"
+  },
+  "horizon": "TRANSITIONAL",
+  "created_at": "2026-11-07T05:00:00.000Z",
+  "updated_at": "2026-11-07T05:00:00.000Z",
+  "nodes": [
+    {
+      "id": "founder",
+      "type": "studio",
+      "position": {
+        "x": 0,
+        "y": 260
+      },
+      "data": {
+        "label": "المؤسس",
+        "kind": "founder",
+        "role": "founder",
+        "status": "IMPLEMENTED"
+      }
+    },
+    {
+      "id": "orch",
+      "type": "studio",
+      "position": {
+        "x": 230,
+        "y": 260
+      },
+      "data": {
+        "label": "المنسق",
+        "kind": "orchestrator",
+        "role": "orchestrator",
+        "status": "PLANNED",
+        "networkMode": "internal",
+        "employee": {
+          "lifecycle": "DRAFT",
+          "deployment": "STOPPED",
+          "autonomy": "L3_LIMITED_AUTONOMOUS",
+          "secrets": [],
+          "contract": {
+            "schema_version": "1.0",
+            "employee_id": "core.orchestrator.v1",
+            "name": "Departments Orchestrator",
+            "role": "orchestrator",
+            "version": "1.0.0",
+            "department": "core",
+            "manager_id": "core.manager.v1",
+            "mission": "Receive objective routes, validate them, check kill switches and route them to the right manager.",
+            "scope": [
+              "Route an objective to the right department manager"
+            ],
+            "exclusions": [
+              "Does not bypass the chain of authority",
+              "Does not commit funds without a founder token"
+            ],
+            "authority": {
+              "autonomy_level": 3
+            },
+            "tools": [
+              {
+                "tool_id": "route_objective",
+                "description": "Route an objective to the right department manager",
+                "is_idempotent": true
+              }
+            ],
+            "skills": [
+              "skills/departments_orchestrator_playbook.md"
+            ],
+            "policies": [
+              "POL_DEFAULT_DENY",
+              "POL_AUDIT_IMMUTABILITY"
+            ],
+            "memory_config": {
+              "type": "ephemeral",
+              "working_memory_max_tokens": 8000,
+              "wipe_on_completion": true
+            },
+            "runtime_config": {
+              "docker_network": "internal",
+              "max_concurrent_tasks": 5,
+              "task_timeout_seconds": 60
+            },
+            "escalation_path": [
+              {
+                "level": 1,
+                "target_id": "core.manager.v1"
+              },
+              {
+                "level": 2,
+                "target_id": "human.founder"
+              }
+            ],
+            "identity_prompt": "You are the Departments Orchestrator. Receive objective routes, validate them, check kill switches and route them to the right manager."
+          },
+          "manifest": {
+            "apiVersion": "apps/v1",
+            "kind": "EmployeeManifest",
+            "metadata": {
+              "employee_id": "core.orchestrator.v1",
+              "version": "1.0.0",
+              "department": "core",
+              "manager_id": "core.manager.v1",
+              "contract_ref": "core/employees/orchestrator/contract.json",
+              "created_at": "2026-11-07T05:00:00.000Z",
+              "lifecycle_state": "CREATED"
+            },
+            "spec": {
+              "runtime": {
+                "image": "socroot/emp-orchestrator:1.0.0",
+                "entrypoint": "employee.py"
+              },
+              "network": {
+                "mode": "internal",
+                "allowed_internal_hosts": [
+                  "socroot-postgres",
+                  "socroot-redis"
+                ]
+              },
+              "environment": {
+                "LOG_LEVEL": "INFO",
+                "ENV": "production",
+                "TENANT_ID": "socroot-core"
+              },
+              "resources": {
+                "cpu_limit": "1000m",
+                "memory_limit": "512Mi"
+              },
+              "health_check": {
+                "endpoint": "/health",
+                "test_command": "python -m core.employees.orchestrator.employee --health",
+                "interval_seconds": 30,
+                "timeout_seconds": 5,
+                "retries": 3
+              },
+              "kill_switch": {
+                "auto_triggers": [
+                  {
+                    "condition": "BUDGET_EXCEEDED",
+                    "level": "TASK",
+                    "action": "halt_task"
+                  },
+                  {
+                    "condition": "POLICY_VIOLATION",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  },
+                  {
+                    "condition": "HEALTH_CHECK_FAILED_3X",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  }
+                ]
+              }
+            }
+          },
+          "promotion": {
+            "synthetic_passed": 0,
+            "shadow_match_rate": 0,
+            "scorecard": {
+              "routing_accuracy": 0,
+              "sla_compliance": 0
+            }
+          },
+          "skills": [
+            {
+              "name": "departments_orchestrator_playbook.md",
+              "body": "---\nname: Departments Orchestrator\nscope: Receive objective routes, validate them, check kill switches and route them to the right manager.\n---\n# Departments Orchestrator\n\n## Rules\n1. Validate every message against its schema before acting.\n2. Check the kill switch at the start of every cycle.\n\n## Decision rules\n- IF a schema check fails THEN reject and audit.\n"
+            }
+          ],
+          "custom_code": "        # Role-specific logic goes here. The embedded guard above has already run.\n        return await self.run_default(task, ctx)\n"
+        }
+      }
+    },
+    {
+      "id": "zone_dept",
+      "type": "zone",
+      "position": {
+        "x": 470,
+        "y": -40
+      },
+      "data": {
+        "label": "dept_influencer_system",
+        "kind": "zone",
+        "role": "zone_line",
+        "status": "PLANNED",
+        "zone": {
+          "zone": "line",
+          "isolation": "internal",
+          "department_class": "FUNCTIONAL_LINE",
+          "department_id": "dept_influencer_system"
+        }
+      },
+      "style": {
+        "width": 560,
+        "height": 640
+      },
+      "zIndex": -1
+    },
+    {
+      "id": "mgr",
+      "type": "studio",
+      "position": {
+        "x": 30,
+        "y": 270
+      },
+      "data": {
+        "label": "مدير قطاع المؤثرين",
+        "kind": "manager",
+        "role": "manager",
+        "status": "PLANNED",
+        "networkMode": "internal",
+        "employee": {
+          "lifecycle": "DRAFT",
+          "deployment": "STOPPED",
+          "autonomy": "L3_LIMITED_AUTONOMOUS",
+          "secrets": [],
+          "contract": {
+            "schema_version": "1.0",
+            "employee_id": "inf.manager.v1",
+            "name": "Department Manager",
+            "role": "manager",
+            "version": "1.0.0",
+            "department": "dept_influencer_system",
+            "manager_id": "inf.manager.v1",
+            "mission": "Coordinate the department team, sequence tasks, manage the budget and run the 9-step loop.",
+            "scope": [
+              "Dispatch a task to an employee",
+              "Build an escalation package for the founder"
+            ],
+            "exclusions": [
+              "Does not bypass the chain of authority",
+              "Does not commit funds without a founder token"
+            ],
+            "authority": {
+              "autonomy_level": 3
+            },
+            "tools": [
+              {
+                "tool_id": "dispatch_task",
+                "description": "Dispatch a task to an employee",
+                "is_idempotent": true
+              },
+              {
+                "tool_id": "build_escalation_package",
+                "description": "Build an escalation package for the founder",
+                "is_idempotent": true
+              }
+            ],
+            "skills": [
+              "skills/department_manager_playbook.md"
+            ],
+            "policies": [
+              "POL_DEFAULT_DENY",
+              "POL_AUDIT_IMMUTABILITY"
+            ],
+            "memory_config": {
+              "type": "ephemeral",
+              "working_memory_max_tokens": 8000,
+              "wipe_on_completion": true
+            },
+            "runtime_config": {
+              "docker_network": "internal",
+              "max_concurrent_tasks": 10,
+              "task_timeout_seconds": 120
+            },
+            "escalation_path": [
+              {
+                "level": 1,
+                "target_id": "inf.manager.v1"
+              },
+              {
+                "level": 2,
+                "target_id": "human.founder"
+              }
+            ],
+            "identity_prompt": "You are the Department Manager. Coordinate the department team, sequence tasks, manage the budget and run the 9-step loop."
+          },
+          "manifest": {
+            "apiVersion": "apps/v1",
+            "kind": "EmployeeManifest",
+            "metadata": {
+              "employee_id": "inf.manager.v1",
+              "version": "1.0.0",
+              "department": "dept_influencer_system",
+              "manager_id": "inf.manager.v1",
+              "contract_ref": "dept_influencer_system/employees/manager/contract.json",
+              "created_at": "2026-11-07T05:00:00.000Z",
+              "lifecycle_state": "CREATED"
+            },
+            "spec": {
+              "runtime": {
+                "image": "socroot/emp-manager:1.0.0",
+                "entrypoint": "employee.py"
+              },
+              "network": {
+                "mode": "internal",
+                "allowed_internal_hosts": [
+                  "socroot-postgres",
+                  "socroot-redis"
+                ]
+              },
+              "environment": {
+                "LOG_LEVEL": "INFO",
+                "ENV": "production",
+                "TENANT_ID": "socroot-core"
+              },
+              "resources": {
+                "cpu_limit": "1000m",
+                "memory_limit": "512Mi"
+              },
+              "health_check": {
+                "endpoint": "/health",
+                "test_command": "python -m dept_influencer_system.employees.manager.employee --health",
+                "interval_seconds": 30,
+                "timeout_seconds": 5,
+                "retries": 3
+              },
+              "kill_switch": {
+                "auto_triggers": [
+                  {
+                    "condition": "BUDGET_EXCEEDED",
+                    "level": "TASK",
+                    "action": "halt_task"
+                  },
+                  {
+                    "condition": "POLICY_VIOLATION",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  },
+                  {
+                    "condition": "HEALTH_CHECK_FAILED_3X",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  }
+                ]
+              }
+            }
+          },
+          "promotion": {
+            "synthetic_passed": 0,
+            "shadow_match_rate": 0,
+            "scorecard": {
+              "routing_accuracy": 0,
+              "sla_compliance": 0
+            }
+          },
+          "skills": [
+            {
+              "name": "department_manager_playbook.md",
+              "body": "---\nname: Department Manager\nscope: Coordinate the department team, sequence tasks, manage the budget and run the 9-step loop.\n---\n# Department Manager\n\n## Rules\n1. Validate every message against its schema before acting.\n2. Check the kill switch at the start of every cycle.\n\n## Decision rules\n- IF a schema check fails THEN reject and audit.\n"
+            }
+          ],
+          "custom_code": "        # Role-specific logic goes here. The embedded guard above has already run.\n        return await self.run_default(task, ctx)\n"
+        }
+      },
+      "parentId": "zone_dept",
+      "extent": "parent"
+    },
+    {
+      "id": "scout",
+      "type": "studio",
+      "position": {
+        "x": 320,
+        "y": 40
+      },
+      "data": {
+        "label": "المستطلع",
+        "kind": "employee",
+        "role": "scout",
+        "status": "PLANNED",
+        "networkMode": "internal",
+        "employee": {
+          "lifecycle": "DRAFT",
+          "deployment": "STOPPED",
+          "autonomy": "L1_SHADOW",
+          "secrets": [
+            {
+              "name": "SOURCE_API_KEY",
+              "ref": "vault://depts/opp_acq/source_api_key"
+            }
+          ],
+          "contract": {
+            "schema_version": "1.0",
+            "employee_id": "inf.scout.v1",
+            "name": "Scout",
+            "role": "scout",
+            "version": "1.0.0",
+            "department": "dept_influencer_system",
+            "manager_id": "inf.manager.v1",
+            "mission": "Survey the approved external sources and collect candidate opportunities.",
+            "scope": [
+              "Fetch a page from an approved source through SSRFGuard",
+              "Extract opportunity fields from a listing"
+            ],
+            "exclusions": [
+              "Does not exceed the scope of its role",
+              "Does not commit funds"
+            ],
+            "authority": {
+              "autonomy_level": 1
+            },
+            "tools": [
+              {
+                "tool_id": "fetch_approved_source",
+                "description": "Fetch a page from an approved source through SSRFGuard",
+                "is_idempotent": true
+              },
+              {
+                "tool_id": "parse_listing",
+                "description": "Extract opportunity fields from a listing",
+                "is_idempotent": true
+              }
+            ],
+            "skills": [
+              "skills/scout_playbook.md"
+            ],
+            "policies": [
+              "POL_SCO_ALLOWLIST",
+              "POL_DEFAULT_DENY",
+              "POL_AUDIT_IMMUTABILITY"
+            ],
+            "memory_config": {
+              "type": "ephemeral",
+              "working_memory_max_tokens": 8000,
+              "wipe_on_completion": true
+            },
+            "runtime_config": {
+              "docker_network": "internal",
+              "max_concurrent_tasks": 5,
+              "task_timeout_seconds": 60
+            },
+            "escalation_path": [
+              {
+                "level": 1,
+                "target_id": "inf.manager.v1"
+              },
+              {
+                "level": 2,
+                "target_id": "human.founder"
+              }
+            ],
+            "identity_prompt": "You are the Scout of the Socroot digital organization. Survey the approved external sources and collect candidate opportunities. Rely on objective evidence only."
+          },
+          "manifest": {
+            "apiVersion": "apps/v1",
+            "kind": "EmployeeManifest",
+            "metadata": {
+              "employee_id": "inf.scout.v1",
+              "version": "1.0.0",
+              "department": "dept_influencer_system",
+              "manager_id": "inf.manager.v1",
+              "contract_ref": "dept_influencer_system/employees/scout/contract.json",
+              "created_at": "2026-11-07T05:00:00.000Z",
+              "lifecycle_state": "CREATED"
+            },
+            "spec": {
+              "runtime": {
+                "image": "socroot/emp-scout:1.0.0",
+                "entrypoint": "employee.py"
+              },
+              "network": {
+                "mode": "internal",
+                "allowed_internal_hosts": [
+                  "socroot-postgres",
+                  "socroot-redis"
+                ]
+              },
+              "environment": {
+                "LOG_LEVEL": "INFO",
+                "ENV": "production",
+                "TENANT_ID": "socroot-core",
+                "SOURCE_API_KEY_SECRET_REF": "vault://depts/opp_acq/source_api_key"
+              },
+              "resources": {
+                "cpu_limit": "1000m",
+                "memory_limit": "512Mi"
+              },
+              "health_check": {
+                "endpoint": "/health",
+                "test_command": "python -m dept_influencer_system.employees.scout.employee --health",
+                "interval_seconds": 30,
+                "timeout_seconds": 5,
+                "retries": 3
+              },
+              "kill_switch": {
+                "auto_triggers": [
+                  {
+                    "condition": "BUDGET_EXCEEDED",
+                    "level": "TASK",
+                    "action": "halt_task"
+                  },
+                  {
+                    "condition": "POLICY_VIOLATION",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  },
+                  {
+                    "condition": "HEALTH_CHECK_FAILED_3X",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  }
+                ]
+              }
+            }
+          },
+          "promotion": {
+            "synthetic_passed": 0,
+            "shadow_match_rate": 0,
+            "scorecard": {
+              "link_extraction_accuracy": 0,
+              "approved_domain_compliance": 0,
+              "response_speed": 0
+            }
+          },
+          "skills": [
+            {
+              "name": "scout_playbook.md",
+              "body": "---\nname: scout_playbook\nscope: Scout playbook\n---\n# Scout playbook\n\n## Rules\n1. Stay inside the scout role.\n2. Cite the evidence behind every conclusion.\n3. Never include unverified numbers.\n\n## Decision rules\n- IF evidence is missing THEN treat the criterion as not met (fail-closed).\n- IF the request is outside this role's scope THEN escalate to the manager.\n"
+            }
+          ],
+          "custom_code": "        # Role-specific logic goes here. The embedded guard above has already run.\n        return await self.run_default(task, ctx)\n"
+        }
+      },
+      "parentId": "zone_dept",
+      "extent": "parent"
+    },
+    {
+      "id": "ctx",
+      "type": "studio",
+      "position": {
+        "x": 320,
+        "y": 170
+      },
+      "data": {
+        "label": "السياق",
+        "kind": "employee",
+        "role": "context",
+        "status": "PLANNED",
+        "networkMode": "internal",
+        "employee": {
+          "lifecycle": "DRAFT",
+          "deployment": "STOPPED",
+          "autonomy": "L1_SHADOW",
+          "secrets": [],
+          "contract": {
+            "schema_version": "1.0",
+            "employee_id": "inf.context.v1",
+            "name": "Context",
+            "role": "context",
+            "version": "1.0.0",
+            "department": "dept_influencer_system",
+            "manager_id": "inf.manager.v1",
+            "mission": "Extract text and evidence and prepare the working context.",
+            "scope": [
+              "Extract evidence passages from collected pages",
+              "Assemble the context pack for the evaluator"
+            ],
+            "exclusions": [
+              "Does not exceed the scope of its role",
+              "Does not commit funds"
+            ],
+            "authority": {
+              "autonomy_level": 1
+            },
+            "tools": [
+              {
+                "tool_id": "extract_evidence",
+                "description": "Extract evidence passages from collected pages",
+                "is_idempotent": true
+              },
+              {
+                "tool_id": "build_context_pack",
+                "description": "Assemble the context pack for the evaluator",
+                "is_idempotent": true
+              }
+            ],
+            "skills": [
+              "skills/context_playbook.md"
+            ],
+            "policies": [
+              "POL_DEFAULT_DENY",
+              "POL_AUDIT_IMMUTABILITY"
+            ],
+            "memory_config": {
+              "type": "ephemeral",
+              "working_memory_max_tokens": 8000,
+              "wipe_on_completion": true
+            },
+            "runtime_config": {
+              "docker_network": "internal",
+              "max_concurrent_tasks": 5,
+              "task_timeout_seconds": 60
+            },
+            "escalation_path": [
+              {
+                "level": 1,
+                "target_id": "inf.manager.v1"
+              },
+              {
+                "level": 2,
+                "target_id": "human.founder"
+              }
+            ],
+            "identity_prompt": "You are the Context of the Socroot digital organization. Extract text and evidence and prepare the working context. Rely on objective evidence only."
+          },
+          "manifest": {
+            "apiVersion": "apps/v1",
+            "kind": "EmployeeManifest",
+            "metadata": {
+              "employee_id": "inf.context.v1",
+              "version": "1.0.0",
+              "department": "dept_influencer_system",
+              "manager_id": "inf.manager.v1",
+              "contract_ref": "dept_influencer_system/employees/context/contract.json",
+              "created_at": "2026-11-07T05:00:00.000Z",
+              "lifecycle_state": "CREATED"
+            },
+            "spec": {
+              "runtime": {
+                "image": "socroot/emp-context:1.0.0",
+                "entrypoint": "employee.py"
+              },
+              "network": {
+                "mode": "internal",
+                "allowed_internal_hosts": [
+                  "socroot-postgres",
+                  "socroot-redis"
+                ]
+              },
+              "environment": {
+                "LOG_LEVEL": "INFO",
+                "ENV": "production",
+                "TENANT_ID": "socroot-core"
+              },
+              "resources": {
+                "cpu_limit": "1000m",
+                "memory_limit": "512Mi"
+              },
+              "health_check": {
+                "endpoint": "/health",
+                "test_command": "python -m dept_influencer_system.employees.context.employee --health",
+                "interval_seconds": 30,
+                "timeout_seconds": 5,
+                "retries": 3
+              },
+              "kill_switch": {
+                "auto_triggers": [
+                  {
+                    "condition": "BUDGET_EXCEEDED",
+                    "level": "TASK",
+                    "action": "halt_task"
+                  },
+                  {
+                    "condition": "POLICY_VIOLATION",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  },
+                  {
+                    "condition": "HEALTH_CHECK_FAILED_3X",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  }
+                ]
+              }
+            }
+          },
+          "promotion": {
+            "synthetic_passed": 0,
+            "shadow_match_rate": 0,
+            "scorecard": {
+              "evidence_precision": 0,
+              "tenant_isolation_in_retrieval": 0,
+              "context_token_efficiency": 0
+            }
+          },
+          "skills": [
+            {
+              "name": "context_playbook.md",
+              "body": "---\nname: context_playbook\nscope: Context playbook\n---\n# Context playbook\n\n## Rules\n1. Stay inside the context role.\n2. Cite the evidence behind every conclusion.\n3. Never include unverified numbers.\n\n## Decision rules\n- IF evidence is missing THEN treat the criterion as not met (fail-closed).\n- IF the request is outside this role's scope THEN escalate to the manager.\n"
+            }
+          ],
+          "custom_code": "        # Role-specific logic goes here. The embedded guard above has already run.\n        return await self.run_default(task, ctx)\n"
+        }
+      },
+      "parentId": "zone_dept",
+      "extent": "parent"
+    },
+    {
+      "id": "eva",
+      "type": "studio",
+      "position": {
+        "x": 320,
+        "y": 300
+      },
+      "data": {
+        "label": "المقيّم",
+        "kind": "employee",
+        "role": "evaluator",
+        "status": "PLANNED",
+        "networkMode": "none",
+        "employee": {
+          "lifecycle": "DRAFT",
+          "deployment": "STOPPED",
+          "autonomy": "L2_ASSISTED",
+          "secrets": [],
+          "contract": {
+            "schema_version": "1.0",
+            "employee_id": "inf.evaluator.v1",
+            "name": "Evaluator",
+            "role": "evaluator",
+            "version": "1.0.0",
+            "department": "dept_influencer_system",
+            "manager_id": "inf.manager.v1",
+            "mission": "Evaluate the eligibility and fit of opportunities deterministically and objectively.",
+            "scope": [
+              "Compute fit score with a deterministic weighted formula",
+              "Check the mandatory eligibility criteria"
+            ],
+            "exclusions": [
+              "Does not write the final proposal",
+              "Does not contact any external party over the network",
+              "Does not commit any funds"
+            ],
+            "authority": {
+              "autonomy_level": 2,
+              "decision_rule": {
+                "minimum_viable_score": 70,
+                "fast_track_threshold": 85,
+                "automatic_abort_threshold": 40
+              }
+            },
+            "tools": [
+              {
+                "tool_id": "calculate_fit_score",
+                "description": "Compute fit score with a deterministic weighted formula",
+                "is_idempotent": true
+              },
+              {
+                "tool_id": "check_eligibility_criteria",
+                "description": "Check the mandatory eligibility criteria",
+                "is_idempotent": true
+              }
+            ],
+            "skills": [
+              "skills/evaluator_playbook.md"
+            ],
+            "policies": [
+              "POL_EVA_AMBIGUOUS_SCORE",
+              "POL_DEFAULT_DENY",
+              "POL_AUDIT_IMMUTABILITY"
+            ],
+            "memory_config": {
+              "type": "ephemeral",
+              "working_memory_max_tokens": 8000,
+              "wipe_on_completion": true
+            },
+            "runtime_config": {
+              "docker_network": "none",
+              "max_concurrent_tasks": 5,
+              "task_timeout_seconds": 60
+            },
+            "escalation_path": [
+              {
+                "level": 1,
+                "target_id": "inf.manager.v1"
+              },
+              {
+                "level": 2,
+                "target_id": "human.founder"
+              }
+            ],
+            "identity_prompt": "You are the Evaluator of the Socroot digital organization. Evaluate the eligibility and fit of opportunities deterministically and objectively. Rely on objective evidence only."
+          },
+          "manifest": {
+            "apiVersion": "apps/v1",
+            "kind": "EmployeeManifest",
+            "metadata": {
+              "employee_id": "inf.evaluator.v1",
+              "version": "1.0.0",
+              "department": "dept_influencer_system",
+              "manager_id": "inf.manager.v1",
+              "contract_ref": "dept_influencer_system/employees/evaluator/contract.json",
+              "created_at": "2026-11-07T05:00:00.000Z",
+              "lifecycle_state": "CREATED"
+            },
+            "spec": {
+              "runtime": {
+                "image": "socroot/emp-evaluator:1.0.0",
+                "entrypoint": "employee.py"
+              },
+              "network": {
+                "mode": "none",
+                "allowed_internal_hosts": []
+              },
+              "environment": {
+                "LOG_LEVEL": "INFO",
+                "ENV": "production",
+                "TENANT_ID": "socroot-core"
+              },
+              "resources": {
+                "cpu_limit": "1000m",
+                "memory_limit": "512Mi"
+              },
+              "health_check": {
+                "endpoint": "/health",
+                "test_command": "python -m dept_influencer_system.employees.evaluator.employee --health",
+                "interval_seconds": 30,
+                "timeout_seconds": 5,
+                "retries": 3
+              },
+              "kill_switch": {
+                "auto_triggers": [
+                  {
+                    "condition": "BUDGET_EXCEEDED",
+                    "level": "TASK",
+                    "action": "halt_task"
+                  },
+                  {
+                    "condition": "POLICY_VIOLATION",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  },
+                  {
+                    "condition": "HEALTH_CHECK_FAILED_3X",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  }
+                ]
+              }
+            }
+          },
+          "promotion": {
+            "synthetic_passed": 0,
+            "shadow_match_rate": 0,
+            "scorecard": {
+              "arithmetic_determinism": 0,
+              "zero_guessing": 0,
+              "early_abort_compliance": 0
+            }
+          },
+          "skills": [
+            {
+              "name": "evaluator_playbook.md",
+              "body": "---\nname: evaluator_playbook\nscope: Evaluator playbook\n---\n# Evaluator playbook\n\n## Rules\n1. Stay inside the evaluator role.\n2. Cite the evidence behind every conclusion.\n3. Never include unverified numbers.\n\n## Decision rules\n- IF evidence is missing THEN treat the criterion as not met (fail-closed).\n- IF the request is outside this role's scope THEN escalate to the manager.\n"
+            }
+          ],
+          "custom_code": "        # Role-specific logic goes here. The embedded guard above has already run.\n        return await self.run_default(task, ctx)\n"
+        }
+      },
+      "parentId": "zone_dept",
+      "extent": "parent"
+    },
+    {
+      "id": "str",
+      "type": "studio",
+      "position": {
+        "x": 320,
+        "y": 430
+      },
+      "data": {
+        "label": "الاستراتيجي",
+        "kind": "employee",
+        "role": "strategist",
+        "status": "PLANNED",
+        "networkMode": "none",
+        "employee": {
+          "lifecycle": "DRAFT",
+          "deployment": "STOPPED",
+          "autonomy": "L1_SHADOW",
+          "secrets": [],
+          "contract": {
+            "schema_version": "1.0",
+            "employee_id": "inf.strategist.v1",
+            "name": "Strategist",
+            "role": "strategist",
+            "version": "1.0.0",
+            "department": "dept_influencer_system",
+            "manager_id": "inf.manager.v1",
+            "mission": "Define the winning strategy and the angles of the submission.",
+            "scope": [
+              "Build the winning strategy from evaluation outputs",
+              "Rank candidate angles by fit"
+            ],
+            "exclusions": [
+              "Does not exceed the scope of its role",
+              "Does not commit funds"
+            ],
+            "authority": {
+              "autonomy_level": 1
+            },
+            "tools": [
+              {
+                "tool_id": "build_win_strategy",
+                "description": "Build the winning strategy from evaluation outputs",
+                "is_idempotent": true
+              },
+              {
+                "tool_id": "rank_submission_angles",
+                "description": "Rank candidate angles by fit",
+                "is_idempotent": true
+              }
+            ],
+            "skills": [
+              "skills/strategist_playbook.md"
+            ],
+            "policies": [
+              "POL_DEFAULT_DENY",
+              "POL_AUDIT_IMMUTABILITY"
+            ],
+            "memory_config": {
+              "type": "ephemeral",
+              "working_memory_max_tokens": 8000,
+              "wipe_on_completion": true
+            },
+            "runtime_config": {
+              "docker_network": "none",
+              "max_concurrent_tasks": 5,
+              "task_timeout_seconds": 60
+            },
+            "escalation_path": [
+              {
+                "level": 1,
+                "target_id": "inf.manager.v1"
+              },
+              {
+                "level": 2,
+                "target_id": "human.founder"
+              }
+            ],
+            "identity_prompt": "You are the Strategist of the Socroot digital organization. Define the winning strategy and the angles of the submission. Rely on objective evidence only."
+          },
+          "manifest": {
+            "apiVersion": "apps/v1",
+            "kind": "EmployeeManifest",
+            "metadata": {
+              "employee_id": "inf.strategist.v1",
+              "version": "1.0.0",
+              "department": "dept_influencer_system",
+              "manager_id": "inf.manager.v1",
+              "contract_ref": "dept_influencer_system/employees/strategist/contract.json",
+              "created_at": "2026-11-07T05:00:00.000Z",
+              "lifecycle_state": "CREATED"
+            },
+            "spec": {
+              "runtime": {
+                "image": "socroot/emp-strategist:1.0.0",
+                "entrypoint": "employee.py"
+              },
+              "network": {
+                "mode": "none",
+                "allowed_internal_hosts": []
+              },
+              "environment": {
+                "LOG_LEVEL": "INFO",
+                "ENV": "production",
+                "TENANT_ID": "socroot-core"
+              },
+              "resources": {
+                "cpu_limit": "1000m",
+                "memory_limit": "512Mi"
+              },
+              "health_check": {
+                "endpoint": "/health",
+                "test_command": "python -m dept_influencer_system.employees.strategist.employee --health",
+                "interval_seconds": 30,
+                "timeout_seconds": 5,
+                "retries": 3
+              },
+              "kill_switch": {
+                "auto_triggers": [
+                  {
+                    "condition": "BUDGET_EXCEEDED",
+                    "level": "TASK",
+                    "action": "halt_task"
+                  },
+                  {
+                    "condition": "POLICY_VIOLATION",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  },
+                  {
+                    "condition": "HEALTH_CHECK_FAILED_3X",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  }
+                ]
+              }
+            }
+          },
+          "promotion": {
+            "synthetic_passed": 0,
+            "shadow_match_rate": 0,
+            "scorecard": {
+              "strategy_grounding": 0,
+              "evaluation_dependency_compliance": 0,
+              "angle_diversity": 0
+            }
+          },
+          "skills": [
+            {
+              "name": "strategist_playbook.md",
+              "body": "---\nname: strategist_playbook\nscope: Strategist playbook\n---\n# Strategist playbook\n\n## Rules\n1. Stay inside the strategist role.\n2. Cite the evidence behind every conclusion.\n3. Never include unverified numbers.\n\n## Decision rules\n- IF evidence is missing THEN treat the criterion as not met (fail-closed).\n- IF the request is outside this role's scope THEN escalate to the manager.\n"
+            }
+          ],
+          "custom_code": "        # Role-specific logic goes here. The embedded guard above has already run.\n        return await self.run_default(task, ctx)\n"
+        }
+      },
+      "parentId": "zone_dept",
+      "extent": "parent"
+    },
+    {
+      "id": "drf",
+      "type": "studio",
+      "position": {
+        "x": 320,
+        "y": 540
+      },
+      "data": {
+        "label": "الصائغ",
+        "kind": "employee",
+        "role": "drafter",
+        "status": "PLANNED",
+        "networkMode": "none",
+        "employee": {
+          "lifecycle": "DRAFT",
+          "deployment": "STOPPED",
+          "autonomy": "L2_ASSISTED",
+          "secrets": [],
+          "contract": {
+            "schema_version": "1.0",
+            "employee_id": "inf.drafter.v1",
+            "name": "Drafter",
+            "role": "drafter",
+            "version": "1.0.0",
+            "department": "dept_influencer_system",
+            "manager_id": "inf.manager.v1",
+            "mission": "Write proposals and formal documents with complete sections.",
+            "scope": [
+              "Assemble the proposal sections",
+              "Verify every required section is present"
+            ],
+            "exclusions": [
+              "Does not exceed the scope of its role",
+              "Does not commit funds"
+            ],
+            "authority": {
+              "autonomy_level": 2
+            },
+            "tools": [
+              {
+                "tool_id": "assemble_proposal_sections",
+                "description": "Assemble the proposal sections",
+                "is_idempotent": true
+              },
+              {
+                "tool_id": "verify_section_completeness",
+                "description": "Verify every required section is present",
+                "is_idempotent": true
+              }
+            ],
+            "skills": [
+              "skills/drafter_playbook.md"
+            ],
+            "policies": [
+              "POL_DRF_HARD_01",
+              "POL_DEFAULT_DENY",
+              "POL_AUDIT_IMMUTABILITY"
+            ],
+            "memory_config": {
+              "type": "ephemeral",
+              "working_memory_max_tokens": 8000,
+              "wipe_on_completion": true
+            },
+            "runtime_config": {
+              "docker_network": "none",
+              "max_concurrent_tasks": 5,
+              "task_timeout_seconds": 60
+            },
+            "escalation_path": [
+              {
+                "level": 1,
+                "target_id": "inf.manager.v1"
+              },
+              {
+                "level": 2,
+                "target_id": "human.founder"
+              }
+            ],
+            "identity_prompt": "You are the Drafter of the Socroot digital organization. Write proposals and formal documents with complete sections. Rely on objective evidence only."
+          },
+          "manifest": {
+            "apiVersion": "apps/v1",
+            "kind": "EmployeeManifest",
+            "metadata": {
+              "employee_id": "inf.drafter.v1",
+              "version": "1.0.0",
+              "department": "dept_influencer_system",
+              "manager_id": "inf.manager.v1",
+              "contract_ref": "dept_influencer_system/employees/drafter/contract.json",
+              "created_at": "2026-11-07T05:00:00.000Z",
+              "lifecycle_state": "CREATED"
+            },
+            "spec": {
+              "runtime": {
+                "image": "socroot/emp-drafter:1.0.0",
+                "entrypoint": "employee.py"
+              },
+              "network": {
+                "mode": "none",
+                "allowed_internal_hosts": []
+              },
+              "environment": {
+                "LOG_LEVEL": "INFO",
+                "ENV": "production",
+                "TENANT_ID": "socroot-core"
+              },
+              "resources": {
+                "cpu_limit": "1000m",
+                "memory_limit": "512Mi"
+              },
+              "health_check": {
+                "endpoint": "/health",
+                "test_command": "python -m dept_influencer_system.employees.drafter.employee --health",
+                "interval_seconds": 30,
+                "timeout_seconds": 5,
+                "retries": 3
+              },
+              "kill_switch": {
+                "auto_triggers": [
+                  {
+                    "condition": "BUDGET_EXCEEDED",
+                    "level": "TASK",
+                    "action": "halt_task"
+                  },
+                  {
+                    "condition": "POLICY_VIOLATION",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  },
+                  {
+                    "condition": "HEALTH_CHECK_FAILED_3X",
+                    "level": "EMPLOYEE",
+                    "action": "freeze_process"
+                  }
+                ]
+              }
+            }
+          },
+          "promotion": {
+            "synthetic_passed": 0,
+            "shadow_match_rate": 0,
+            "scorecard": {
+              "section_completeness": 0,
+              "style_consistency": 0,
+              "context_leak_free": 0
+            }
+          },
+          "skills": [
+            {
+              "name": "drafter_playbook.md",
+              "body": "---\nname: drafter_playbook\nscope: Drafter playbook\n---\n# Drafter playbook\n\n## Rules\n1. Stay inside the drafter role.\n2. Cite the evidence behind every conclusion.\n3. Never include unverified numbers.\n\n## Decision rules\n- IF evidence is missing THEN treat the criterion as not met (fail-closed).\n- IF the request is outside this role's scope THEN escalate to the manager.\n"
+            }
+          ],
+          "custom_code": "        # Role-specific logic goes here. The embedded guard above has already run.\n        return await self.run_default(task, ctx)\n"
+        }
+      },
+      "parentId": "zone_dept",
+      "extent": "parent"
+    },
+    {
+      "id": "ssrf",
+      "type": "studio",
+      "position": {
+        "x": 1130,
+        "y": 40
+      },
+      "data": {
+        "label": "حارس SSRF ووكيل الخروج",
+        "kind": "guard",
+        "role": "ssrf_guard",
+        "status": "IMPLEMENTED"
+      }
+    },
+    {
+      "id": "zone_web",
+      "type": "zone",
+      "position": {
+        "x": 1380,
+        "y": -30
+      },
+      "data": {
+        "label": "العالم غير الموثوق",
+        "kind": "zone",
+        "role": "zone_untrusted",
+        "status": "IMPLEMENTED",
+        "zone": {
+          "zone": "untrusted",
+          "isolation": "none"
+        }
+      },
+      "style": {
+        "width": 260,
+        "height": 200
+      },
+      "zIndex": -1
+    },
+    {
+      "id": "web",
+      "type": "studio",
+      "position": {
+        "x": 40,
+        "y": 70
+      },
+      "data": {
+        "label": "Instagram",
+        "kind": "external",
+        "role": "external",
+        "status": "PLANNED"
+      },
+      "parentId": "zone_web",
+      "extent": "parent"
+    },
+    {
+      "id": "l3",
+      "type": "studio",
+      "position": {
+        "x": 1130,
+        "y": 190
+      },
+      "data": {
+        "label": "L3 — الذاكرة الدلالية",
+        "kind": "memory",
+        "role": "l3",
+        "status": "PLANNED"
+      }
+    },
+    {
+      "id": "l2",
+      "type": "studio",
+      "position": {
+        "x": 1130,
+        "y": 330
+      },
+      "data": {
+        "label": "L2 — قاعدة بيانات المؤثرين",
+        "kind": "memory",
+        "role": "l2",
+        "status": "IMPLEMENTED"
+      }
+    },
+    {
+      "id": "pe",
+      "type": "studio",
+      "position": {
+        "x": 1130,
+        "y": 470
+      },
+      "data": {
+        "label": "محرك السياسات",
+        "kind": "guard",
+        "role": "policy_engine",
+        "status": "IMPLEMENTED"
+      }
+    },
+    {
+      "id": "bg",
+      "type": "studio",
+      "position": {
+        "x": 1130,
+        "y": 560
+      },
+      "data": {
+        "label": "حارس الميزانية",
+        "kind": "guard",
+        "role": "budget_guard",
+        "status": "IMPLEMENTED"
+      }
+    },
+    {
+      "id": "kill",
+      "type": "studio",
+      "position": {
+        "x": 470,
+        "y": 700
+      },
+      "data": {
+        "label": "قاطع الطوارئ",
+        "kind": "guard",
+        "role": "kill_switch",
+        "status": "IMPLEMENTED"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "founder>orch:OBJECTIVE_ROUTE",
+      "source": "founder",
+      "target": "orch",
+      "type": "protocol",
+      "sourceHandle": "out:OBJECTIVE_ROUTE",
+      "targetHandle": "in:OBJECTIVE_ROUTE",
+      "animated": true,
+      "data": {
+        "kind": "OBJECTIVE_ROUTE"
+      }
+    },
+    {
+      "id": "orch>mgr:OBJECTIVE_ROUTE",
+      "source": "orch",
+      "target": "mgr",
+      "type": "protocol",
+      "sourceHandle": "out:OBJECTIVE_ROUTE",
+      "targetHandle": "in:OBJECTIVE_ROUTE",
+      "animated": true,
+      "data": {
+        "kind": "OBJECTIVE_ROUTE"
+      }
+    },
+    {
+      "id": "mgr>scout:TASK_DISPATCH_RESULT",
+      "source": "mgr",
+      "target": "scout",
+      "type": "protocol",
+      "sourceHandle": "out:TASK_DISPATCH_RESULT",
+      "targetHandle": "in:TASK_DISPATCH_RESULT",
+      "animated": true,
+      "data": {
+        "kind": "TASK_DISPATCH_RESULT"
+      }
+    },
+    {
+      "id": "mgr>ctx:TASK_DISPATCH_RESULT",
+      "source": "mgr",
+      "target": "ctx",
+      "type": "protocol",
+      "sourceHandle": "out:TASK_DISPATCH_RESULT",
+      "targetHandle": "in:TASK_DISPATCH_RESULT",
+      "animated": true,
+      "data": {
+        "kind": "TASK_DISPATCH_RESULT"
+      }
+    },
+    {
+      "id": "mgr>eva:TASK_DISPATCH_RESULT",
+      "source": "mgr",
+      "target": "eva",
+      "type": "protocol",
+      "sourceHandle": "out:TASK_DISPATCH_RESULT",
+      "targetHandle": "in:TASK_DISPATCH_RESULT",
+      "animated": true,
+      "data": {
+        "kind": "TASK_DISPATCH_RESULT"
+      }
+    },
+    {
+      "id": "mgr>str:TASK_DISPATCH_RESULT",
+      "source": "mgr",
+      "target": "str",
+      "type": "protocol",
+      "sourceHandle": "out:TASK_DISPATCH_RESULT",
+      "targetHandle": "in:TASK_DISPATCH_RESULT",
+      "animated": true,
+      "data": {
+        "kind": "TASK_DISPATCH_RESULT"
+      }
+    },
+    {
+      "id": "mgr>drf:TASK_DISPATCH_RESULT",
+      "source": "mgr",
+      "target": "drf",
+      "type": "protocol",
+      "sourceHandle": "out:TASK_DISPATCH_RESULT",
+      "targetHandle": "in:TASK_DISPATCH_RESULT",
+      "animated": true,
+      "data": {
+        "kind": "TASK_DISPATCH_RESULT"
+      }
+    },
+    {
+      "id": "mgr>founder:ESCALATION_PATH",
+      "source": "mgr",
+      "target": "founder",
+      "type": "protocol",
+      "sourceHandle": "out:ESCALATION_PATH",
+      "targetHandle": "in:ESCALATION_PATH",
+      "animated": true,
+      "data": {
+        "kind": "ESCALATION_PATH"
+      }
+    },
+    {
+      "id": "scout>ssrf:EGRESS_NETWORK",
+      "source": "scout",
+      "target": "ssrf",
+      "type": "protocol",
+      "sourceHandle": "out:EGRESS_NETWORK",
+      "targetHandle": "in:EGRESS_NETWORK",
+      "animated": true,
+      "data": {
+        "kind": "EGRESS_NETWORK"
+      }
+    },
+    {
+      "id": "ssrf>web:EGRESS_NETWORK",
+      "source": "ssrf",
+      "target": "web",
+      "type": "protocol",
+      "sourceHandle": "out:EGRESS_NETWORK",
+      "targetHandle": "in:EGRESS_NETWORK",
+      "animated": true,
+      "data": {
+        "kind": "EGRESS_NETWORK"
+      }
+    },
+    {
+      "id": "ctx>l3:MEMORY_BUS",
+      "source": "ctx",
+      "target": "l3",
+      "type": "protocol",
+      "sourceHandle": "out:MEMORY_BUS",
+      "targetHandle": "in:MEMORY_BUS",
+      "animated": true,
+      "data": {
+        "kind": "MEMORY_BUS",
+        "access": "read"
+      }
+    },
+    {
+      "id": "str>l2:MEMORY_BUS",
+      "source": "str",
+      "target": "l2",
+      "type": "protocol",
+      "sourceHandle": "out:MEMORY_BUS",
+      "targetHandle": "in:MEMORY_BUS",
+      "animated": true,
+      "data": {
+        "kind": "MEMORY_BUS",
+        "access": "read"
+      }
+    },
+    {
+      "id": "kill>mgr:KILL_PLANE_SIGNAL",
+      "source": "kill",
+      "target": "mgr",
+      "type": "protocol",
+      "sourceHandle": "out:KILL_PLANE_SIGNAL",
+      "targetHandle": "in:KILL_PLANE_SIGNAL",
+      "animated": true,
+      "data": {
+        "kind": "KILL_PLANE_SIGNAL"
+      }
+    }
+  ],
+  "configs": {
+    "model_routing": "# config/model_routing.yaml\nrouting:\n  scout:\n    primary:\n      provider: \"anthropic\"\n      model:    \"claude-3-5-haiku-20241022\"\n      temperature: 0.2\n      max_tokens:  4096\n      timeout:     30\n    fallback:\n      provider: \"google\"\n      model:    \"gemini-2.0-flash\"\n      timeout:   30\n\n  evaluator:\n    primary:\n      provider:    \"anthropic\"\n      model:       \"claude-3-7-sonnet-20250219\"\n      temperature: 0.0          # حتمية كاملة لتقييم الأهلية\n      max_tokens:  8192\n      timeout:     40\n    fallback:\n      provider: \"google\"\n      model:    \"gemini-2.0-flash\"\n\n  drafter:\n    primary:\n      provider:    \"anthropic\"\n      model:       \"claude-3-7-sonnet-20250219\"\n      temperature: 0.3          # إبداعية محسوبة ومضبوطة للصياغة\n      max_tokens:  16384        # مساحة واسعة للعروض الطويلة\n      timeout:     90\n    fallback:\n      provider: \"openai\"\n      model:    \"gpt-4o\"\n\n  manager:\n    primary:\n      provider:         \"anthropic\"\n      model:            \"claude-3-7-sonnet-20250219\"\n      response_format:  \"json_object\"  # إلزام النموذج بإخراج JSON منضبط\n      timeout:          60\n\n  default:\n    primary:\n      provider: \"google\"\n      model:    \"gemini-2.0-flash\"\n      timeout:  30\n",
+    "sources_watchlist": "# config/sources_watchlist.yaml — influencer system (Instagram only)\n# Approved source is Instagram only at this stage (founder decision, 25 Oct 2026).\n# The database's 15-group source registry is a separate register; it does not widen this allowlist.\nblocked_ip_ranges:\n  - \"10.0.0.0/8\"         # RFC 1918 — private networks\n  - \"172.16.0.0/12\"      # RFC 1918\n  - \"192.168.0.0/16\"     # RFC 1918\n  - \"127.0.0.0/8\"        # Loopback\n  - \"169.254.169.254/32\" # AWS/GCP IMDS\n  - \"fd00::/8\"           # IPv6 ULA\n\napproved_sources:\n  instagram:\n    name:   \"Instagram\"\n    domain: \"instagram.com\"\n    paths:  [\"/\"]\n\nconstraints:\n  max_timeout:         10\n  max_response_size:   5242880\n  methods:             [GET, HEAD]\n",
+    "pricing_config": "# config/pricing_config.yaml\nmodels:\n  claude-3-7-sonnet-20250219:\n    input_per_million: 3.00\n    output_per_million: 15.00\n    cache_read_per_million: 0.30\n    cache_write_per_million: 3.75\n  claude-3-5-haiku-20241022:\n    input_per_million: 0.80\n    output_per_million: 4.00\n    cache_read_per_million: 0.08\n    cache_write_per_million: 1.00\n  gemini-2.0-flash:\n    input_per_million: 0.10\n    output_per_million: 0.40\n    cache_read_per_million: 0.025\n    cache_write_per_million: 0.10\n  gpt-4o:\n    input_per_million: 2.50\n    output_per_million: 10.00\n    cache_read_per_million: 1.25\n    cache_write_per_million: 2.50\n"
+  }
+}
